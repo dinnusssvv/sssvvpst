@@ -1,0 +1,2252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sri Satya Sai Vidhya Vihar — Parent Service Management</title>
+
+<!-- Firebase compat SDK: works directly from this single HTML file -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --primary:#3157d5;
+  --primary-dark:#2444b0;
+  --primary-light:#eef2ff;
+  --green:#16834a;
+  --green-light:#eaf8f0;
+  --orange:#c56a00;
+  --orange-light:#fff4df;
+  --red:#c93636;
+  --red-light:#fff0f0;
+  --text:#172033;
+  --muted:#687386;
+  --border:#e2e6ee;
+  --bg:#f5f7fb;
+  --card:#fff;
+  --shadow:0 8px 28px rgba(27,39,72,.07);
+  --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+
+#loading{
+  position:fixed;inset:0;background:rgba(255,255,255,.95);z-index:1000;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px
+}
+.spinner{width:36px;height:36px;border:4px solid #dfe5f5;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:min(440px,100%);background:white;border-radius:24px;box-shadow:var(--shadow);padding:30px}
+.school-logo{width:72px;height:72px;border-radius:20px;background:var(--primary-light);display:grid;place-items:center;font-size:34px;margin:0 auto 16px}
+.login-card h1{text-align:center;font-size:23px;margin:0 0 7px}
+.login-card .sub{text-align:center;color:var(--muted);margin:0 0 25px;font-size:14px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
+input,select,textarea{
+  width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:10px;
+  background:#fff;color:var(--text);outline:none
+}
+input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,87,213,.1)}
+textarea{min-height:82px;resize:vertical}
+.btn{
+  border:0;border-radius:10px;padding:11px 15px;font-weight:700;display:inline-flex;
+  align-items:center;justify-content:center;gap:7px;min-height:43px
+}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-secondary{background:#eef1f6;color:var(--text)}
+.btn-success{background:var(--green);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-warning{background:#fff0d8;color:#8b5000}
+.btn-full{width:100%}
+.btn-small{min-height:34px;padding:7px 10px;font-size:12px}
+.error{background:var(--red-light);color:#9d2929;padding:10px 12px;border-radius:9px;font-size:13px;margin-bottom:13px}
+.info{background:var(--primary-light);color:#2746a7;padding:11px 12px;border-radius:9px;font-size:13px;margin-bottom:13px}
+
+#app{min-height:100vh}
+.topbar{
+  background:#fff;border-bottom:1px solid var(--border);height:64px;display:flex;align-items:center;
+  position:sticky;top:0;z-index:30;padding:0 18px;gap:14px
+}
+.brand{font-weight:800;display:flex;align-items:center;gap:10px;min-width:0}
+.brand-icon{width:38px;height:38px;border-radius:10px;background:var(--primary);color:#fff;display:grid;place-items:center}
+.brand-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.user-email{font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-btn{display:none}
+
+.layout{display:flex;max-width:1500px;margin:auto}
+.sidebar{
+  width:230px;padding:18px 12px;position:sticky;top:64px;height:calc(100vh - 64px);
+  border-right:1px solid var(--border);background:#fff
+}
+.nav-btn{
+  width:100%;border:0;background:transparent;text-align:left;padding:12px 13px;border-radius:10px;
+  margin-bottom:4px;color:#4c586d;font-weight:650
+}
+.nav-btn:hover,.nav-btn.active{background:var(--primary-light);color:var(--primary)}
+.main{flex:1;padding:22px;min-width:0}
+.page-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+.page-title h2{font-size:25px;margin:0}.page-title p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.stat-label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.stat-value{font-size:30px;font-weight:800;margin-top:7px}
+.stat-note{font-size:12px;color:var(--muted);margin-top:5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.section-head h3{font-size:17px;margin:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+.toolbar>*{flex:0 1 auto}
+.search{min-width:220px;flex:1}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
+table{width:100%;border-collapse:collapse;min-width:680px}
+th,td{padding:11px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:13px;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em;background:#fafbfe}
+tr:last-child td{border-bottom:0}
+.badge{display:inline-flex;padding:5px 8px;border-radius:99px;font-size:11px;font-weight:800}
+.badge-green{background:var(--green-light);color:var(--green)}
+.badge-orange{background:var(--orange-light);color:var(--orange)}
+.badge-red{background:var(--red-light);color:var(--red)}
+.badge-blue{background:var(--primary-light);color:var(--primary)}
+.empty{padding:35px;text-align:center;color:var(--muted);font-size:13px}
+.modal{
+  position:fixed;inset:0;background:rgba(14,22,40,.48);z-index:100;display:flex;align-items:center;
+  justify-content:center;padding:18px
+}
+.modal-box{background:#fff;border-radius:18px;width:min(600px,100%);max-height:92vh;overflow:auto;padding:20px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px}
+.modal-head h3{margin:0;font-size:19px}
+.close{border:0;background:#f0f2f6;width:34px;height:34px;border-radius:50%;font-size:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.form-grid .full{grid-column:1/-1}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.notice{padding:13px 14px;border-radius:11px;background:#f7f8fb;border:1px solid var(--border);font-size:13px;color:#4e596b}
+.progress{height:8px;background:#edf0f5;border-radius:99px;overflow:hidden;margin-top:8px}
+.progress>span{display:block;height:100%;background:var(--primary);border-radius:99px}
+.quick-list{display:flex;flex-direction:column;gap:8px}
+.quick-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+.quick-row:last-child{border-bottom:0}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.center{text-align:center}
+.file-label{display:inline-flex;align-items:center;justify-content:center}
+#toast{
+ position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);background:#172033;color:#fff;
+ padding:11px 15px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;z-index:500;
+ transition:.2s;max-width:90vw;text-align:center
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.security-note{margin-top:18px;font-size:11px;line-height:1.5;color:var(--muted);text-align:center}
+
+.hist{max-height:230px;overflow:auto;border:1px solid var(--border);border-radius:12px;padding:12px;background:#fafbfe}
+.hist-month{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)}
+.hist-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:13px}
+.hist-row.cur{background:var(--primary-light);border-radius:8px;padding:5px 8px}
+body.readonly #addStudentBtn,body.readonly #addServiceBtn,body.readonly #quickServiceBtn,body.readonly .file-label,
+body.readonly [onclick*="openStudentModalById"],body.readonly [onclick*="openServiceModalById"],body.readonly [onclick*="editFromHistory"],
+body.readonly [onclick*="addForMonth"],body.readonly [onclick*="payFullYear"],body.readonly [onclick*="sendWA"],
+body.readonly [onclick*="deleteStudent"],body.readonly [onclick*="deleteService"],body.readonly .bk-bar{display:none!important}
+body.readonly .bk-cell input{pointer-events:none}
+body.readonly .bk-wrap{margin-bottom:0}
+.wa-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
+@media(max-width:900px){.wa-grid{grid-template-columns:1fr}}
+.wa-vars{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px}
+.wa-var{border:1px dashed var(--primary);background:var(--primary-light);color:var(--primary);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.wa-phone{background:#e5ddd5;border-radius:16px;padding:18px;min-height:260px}
+.wa-bubble{background:#dcf8c6;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 1px rgba(0,0,0,.12);max-width:100%}
+.btn-wa{background:#25d366;color:#fff}.btn-wa:hover{background:#1da851}
+.role-box{display:grid;gap:8px}
+.role-opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:400}
+.role-opt input{width:auto;margin-top:3px}
+.role-opt.dis{opacity:.5;cursor:not-allowed}
+.bk-hours{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;white-space:nowrap}
+.bk-hours input{width:70px;padding:8px}
+.bk-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;margin-bottom:12px}
+.bk-wrap{max-height:68vh;margin-bottom:70px}
+.bk-table{min-width:0;width:max-content}
+.bk-table th{position:sticky;top:0;z-index:3;text-align:center;white-space:nowrap}
+.bk-table th:first-child,.bk-table td:first-child{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:170px;box-shadow:1px 0 0 var(--border)}
+.bk-table th:first-child{background:#fafbfe;z-index:5}
+.bk-cell{min-width:126px;padding:7px 6px!important;text-align:center}
+.bk-cell.off{background:#f6f7fa}
+.bk-chips{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.bk-chip{display:flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:7px;padding:4px 2px;font-size:11px;font-weight:700;cursor:pointer;user-select:none;background:#fff}
+.bk-chip input{width:auto;margin:0;padding:0;box-shadow:none}
+.bk-chip.on{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+.bk-chip.on.t-payment,.bk-chip.on.t-year{background:#e6f0ff}
+.bk-chip.on.t-service{background:var(--green-light);border-color:var(--green);color:var(--green)}
+.bk-chip.on.t-exception{background:var(--orange-light);border-color:var(--orange);color:var(--orange)}
+.bk-date{margin-top:5px;padding:5px 4px;font-size:11px;border-radius:7px}
+.bk-date:disabled{opacity:.35}
+.bk-row-has td:first-child{background:#fffbea}
+.bk-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;justify-content:flex-end;gap:10px;box-shadow:0 -6px 20px rgba(27,39,72,.08)}
+.bk-bar span{margin-right:auto;font-weight:700;font-size:13px}
+#page-bulk.hidden + .x{display:none}
+@media(max-width:900px){
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  .topbar{height:58px;padding:0 12px}
+  .brand-text{font-size:13px}
+  .brand-icon{width:34px;height:34px}
+  .menu-btn{display:grid;place-items:center;width:38px;height:38px;border:0;background:#eef1f6;border-radius:9px}
+  .sidebar{
+    position:fixed;left:-250px;top:58px;height:calc(100vh - 58px);z-index:40;transition:left .2s;
+    box-shadow:8px 0 30px rgba(0,0,0,.12)
+  }
+  .sidebar.open{left:0}
+  .main{padding:15px}
+  .user-email{display:none}
+  .page-title{align-items:flex-start}.page-title h2{font-size:21px}
+  .cards{grid-template-columns:1fr 1fr;gap:9px}
+  .card{padding:14px}
+  .stat-value{font-size:24px}
+  .form-grid{grid-template-columns:1fr}
+  .form-grid .full{grid-column:auto}
+  .modal{padding:10px}.modal-box{padding:16px}
+  .toolbar{display:grid;grid-template-columns:1fr 1fr}.toolbar .search{grid-column:1/-1}
+  .toolbar .btn{width:100%}
+}
+@media(max-width:430px){
+  .cards{grid-template-columns:1fr 1fr}
+  .brand-text{max-width:170px}
+}
+</style>
+</head>
+
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <strong>Loading school service management…</strong>
+  <div class="small muted" id="loadingText">Starting application…</div>
+</div>
+
+<!-- LOGIN -->
+<section id="loginScreen" class="login-wrap hidden">
+  <div class="login-card">
+    <div class="school-logo">🏫</div>
+    <h1>Sri Satya Sai Vidhya Vihar</h1>
+    <p class="sub">Parent Service Management</p>
+    <div id="loginError" class="error hidden"></div>
+    <form id="loginForm">
+      <div class="field">
+        <label>Username</label>
+        <input id="loginEmail" type="text" autocomplete="username" placeholder="Username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit">Sign in</button>
+    </form>
+    <p class="security-note">Accounts are created by the administrator. Contact the school office if you need access.</p>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="app" class="hidden">
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn">☰</button>
+    <div class="brand">
+      <div class="brand-icon">🏫</div>
+      <div class="brand-text">Sri Satya Sai Vidhya Vihar</div>
+    </div>
+    <div class="top-actions">
+      <span class="user-email" id="userEmail"></span>
+      <button class="btn btn-secondary btn-small" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <button class="nav-btn active" data-page="dashboard">📊 Dashboard</button>
+      <button class="nav-btn" data-page="students">👨‍👩‍👧 Students & Parents</button>
+      <button class="nav-btn" data-page="bulk">⚡ Bulk Fulfilment</button>
+      <button class="nav-btn" data-page="services">🧹 Service Records</button>
+      <button class="nav-btn" data-page="reports">📋 Monthly Report</button>
+      <button class="nav-btn" data-page="classreports">📑 Class & Student Reports</button>
+      <button class="nav-btn" data-page="data">💾 Data Management</button>
+      <button class="nav-btn" data-page="whatsapp">💬 WhatsApp Message</button>
+      <button class="nav-btn" data-page="users">👤 User Management</button>
+    </aside>
+
+    <main class="main">
+      <!-- DASHBOARD -->
+      <section id="page-dashboard" class="page">
+        <div class="page-title">
+          <div>
+            <h2>Dashboard</h2>
+            <p id="dashboardMonth"></p>
+          </div>
+          <button class="btn btn-primary" id="quickServiceBtn">＋ Add Service</button>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin-bottom:0">
+            <select id="dbAY"></select>
+            <select id="dbMonth"></select>
+          </div>
+        </div>
+
+        <div class="cards">
+          <div class="card dashboard-count-card" onclick="openDashboardStudents('all')" title="View these students">
+            <div class="stat-label">All students</div><div class="stat-value" id="dbStudents">0</div><div class="stat-note" id="dbStuNote">Active students</div>
+          </div>
+          <div class="card dashboard-count-card" onclick="openDashboardStudents('fulfilled')" title="View fulfilled students">
+            <div class="stat-label">Fulfilment done</div><div class="stat-value" id="dbFulfilled">0</div><div class="stat-note" id="dbFulNote"></div>
+            <div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:6px">
+              <div class="hist-row"><span>🧹 Service</span><strong id="dbFulService">0</strong></div>
+              <div class="hist-row"><span>₹ Payment</span><strong id="dbFulPay">0</strong></div>
+              <div class="hist-row"><span>⚠ Exception</span><strong id="dbFulExc">0</strong></div>
+            </div>
+          </div>
+          <div class="card dashboard-count-card" onclick="openDashboardStudents('pending')" title="View pending students">
+            <div class="stat-label">Pending</div><div class="stat-value" id="dbPendingCnt" style="color:var(--red)">0</div><div class="stat-note" id="dbPendNote"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-head"><h3 id="dbAYTitle">Academic year</h3><span class="small muted">For the whole academic year, not just this month</span></div>
+          <div class="grid2">
+            <div class="quick-row" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+              <div><div class="stat-label">Full-year payments</div><div style="display:flex;align-items:baseline;gap:10px"><span class="stat-value" id="dbFullCount" style="margin-top:4px">0</span><span class="small muted" id="dbFullNote"></span></div></div>
+              <button class="btn btn-secondary btn-small" id="dbFullBtn">View students</button>
+            </div>
+            <div class="quick-row" style="border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+              <div><div class="stat-label">Staff students (exception)</div><div style="display:flex;align-items:baseline;gap:10px"><span class="stat-value" id="dbStaffCount" style="margin-top:4px">0</span><span class="small muted">Parent is a teacher</span></div></div>
+              <button class="btn btn-secondary btn-small" id="dbStaffBtn">View students</button>
+            </div>
+          </div>
+          <div id="dbAYDetail" class="hidden" style="margin-top:14px">
+            <div class="section-head"><h3 id="dbAYDetailTitle" style="font-size:15px"></h3><button class="btn btn-secondary btn-small" id="dbAYClose">Close</button></div>
+            <div class="table-wrap"><table style="min-width:620px"><thead id="dbAYHead"></thead><tbody id="dbAYBody"></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-head"><h3 id="dbOverallTitle">School overview</h3><span class="small muted" id="completionPercent">0%</span></div>
+          <div class="progress"><span id="completionBar" style="width:0%"></span></div>
+          <div class="small muted" id="dbOverallNote" style="margin-top:10px"></div>
+          <div id="dbAttention" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-head"><h3 id="dbClassTitle">Class-wise report</h3><span class="small muted">Tap a class to see its pending parents</span></div>
+          <div class="table-wrap"><table style="min-width:640px">
+            <thead><tr><th>Class</th><th>Students</th><th>Service</th><th>Payment</th><th>Exception</th><th>Pending</th><th style="min-width:170px">Completion</th></tr></thead>
+            <tbody id="dbClassBody"></tbody>
+          </table></div>
+        </div>
+
+        <div class="card hidden" id="dbClassDetail" style="margin-bottom:16px">
+          <div class="section-head"><h3 id="dbDetailTitle"></h3>
+            <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-small" id="dbOpenReport">Full class report</button><button class="btn btn-secondary btn-small" id="dbCloseDetail">Close</button></div></div>
+          <div id="dbDetailBody" class="quick-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-head"><h3>Month-wise completion by class</h3><span class="small muted" id="dbAYLabel"></span></div>
+          <div class="table-wrap"><table style="min-width:820px"><thead id="dbHeatHead"></thead><tbody id="dbHeatBody"></tbody></table></div>
+          <div class="small muted" style="margin-top:10px">% of active students whose monthly requirement is complete (service done, paid, or exempt). Green 90%+ · Orange 60–89% · Red below 60%.</div>
+        </div>
+      </section>
+
+      <!-- STUDENTS -->
+      <section id="page-students" class="page hidden">
+        <div class="page-title">
+          <div><h2>Students & Parents</h2><p>Maintain the list of students and their parent/contact information.</p></div>
+          <button class="btn btn-primary" id="addStudentBtn">＋ Add Student</button>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <select id="studentSearchBy"><option value="class">Search by Class</option><option value="roll">Search by Roll No</option><option value="name">Search by Name</option></select>
+            <select id="studentClassFilter"></select>
+            <input id="studentSearch" class="search hidden" placeholder="Type student name…">
+            <select id="studentStatusFilter">
+              <option value="active">Active only</option><option value="all">All</option><option value="inactive">Inactive only</option>
+            </select>
+            <select id="studentModeFilter">
+              <option value="">All arrangements</option><option value="service">Does service</option><option value="pay">Pays instead</option><option value="exception">Exception</option><option value="teacher">Parent is a teacher</option>
+            </select>
+            <select id="studentMonthFilter">
+              <option value="">This month: any status</option><option value="pending">This month: Pending</option><option value="completed">This month: Completed</option><option value="paid">This month: Paid</option><option value="exempt">This month: Exempt</option><option value="prev">Earlier months pending</option>
+            </select>
+            <button class="btn btn-secondary" id="exportStudentsBtn">Export CSV</button>
+            <label class="btn btn-secondary file-label">⬆ Import Students<input id="importStudentsInput" type="file" accept=".xlsx,.xls,.csv" hidden></label>
+            <button class="btn btn-secondary" id="studentTemplateBtn">⬇ Import Template</button>
+            <button class="btn btn-secondary hidden" id="clearDashboardStudentFilter">Clear dashboard filter</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Student</th><th>Class</th><th>Parent</th><th>Phone</th><th>Service arrangement</th><th>This month</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="studentsTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVICES -->
+      <section id="page-services" class="page hidden">
+        <div class="page-title">
+          <div><h2>Service Records</h2><p>Record each parent's monthly school service.</p></div>
+          <button class="btn btn-primary" id="addServiceBtn">＋ Add Service</button>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="serviceSearch" class="search" placeholder="Search student, parent or activity…">
+            <input id="serviceMonthFilter" type="month">
+            <button class="btn btn-secondary" id="exportServicesBtn">Export CSV</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Student</th><th>Parent</th><th>Type</th><th>Time</th><th>Hours / Amount</th><th>Activity</th><th>Notes</th><th>Actions</th></tr></thead>
+              <tbody id="servicesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="page-reports" class="page hidden">
+        <div class="page-title">
+          <div><h2>Monthly Report</h2><p>See who has completed the monthly 2-hour requirement.</p></div>
+          <div style="display:flex;gap:8px">
+            <input id="reportMonth" type="month">
+            <button class="btn btn-secondary" id="exportReportBtn">Export CSV</button>
+          </div>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="stat-label">Students</div><div class="stat-value" id="reportStudents">0</div></div>
+          <div class="card"><div class="stat-label">Completed</div><div class="stat-value" id="reportCompleted">0</div></div>
+          <div class="card"><div class="stat-label">Pending</div><div class="stat-value" id="reportPending">0</div></div>
+          <div class="card"><div class="stat-label">Hours</div><div class="stat-value" id="reportHours">0</div><div class="stat-note" id="reportHoursNote"></div></div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Student</th><th>Class</th><th>Parent</th><th>Phone</th><th>Hours</th><th>Status</th><th>Service dates / details</th></tr></thead>
+              <tbody id="reportTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLASS & STUDENT REPORTS -->
+      <section id="page-classreports" class="page hidden">
+        <div class="page-title">
+          <div><h2>Class & Student Reports</h2><p>Hours, service and amount per student, month by month for an academic year.</p></div>
+          <button class="btn btn-secondary" id="exportClassReportBtn">Export CSV</button>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin-bottom:0">
+            <select id="crAY"></select>
+            <select id="crClass"></select>
+            <input id="crSearch" class="search" placeholder="Search student name or roll no (optional)">
+            <select id="crShow"><option value="">All students</option><option value="pending">With pending months</option><option value="clear">No pending months</option></select>
+          </div>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="stat-label">Students</div><div class="stat-value" id="crStudents">0</div></div>
+          <div class="card"><div class="stat-label">Service hours</div><div class="stat-value" id="crHours">0</div></div>
+          <div class="card"><div class="stat-label">Amount paid</div><div class="stat-value" id="crPaid">₹0</div></div>
+          <div class="card"><div class="stat-label">Pending months</div><div class="stat-value" id="crPending">0</div></div>
+        </div>
+        <div class="card"><div class="table-wrap"><table style="min-width:1250px"><thead id="crHead"></thead><tbody id="crBody"></tbody></table></div></div>
+      </section>
+
+      <!-- DATA -->
+      <section id="page-bulk" class="page hidden">
+        <div class="page-title">
+          <div><h2>Bulk Fulfilment</h2><p>Mark past service / payments for many students at once. Tick one type per month, add the date if you know it, then Save all.</p></div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <select id="bkAY"></select>
+            <select id="bkClass"></select>
+            <input id="bkSearch" class="search" placeholder="Search name / roll no in this class…">
+            <label class="bk-hours">Hours for ticked "Svc" <input id="bkHours" type="number" min="0" step="any" value="2"></label>
+            <label class="bk-hours">Payment coverage <select id="bkPayCoverage"><option value="month">Selected month</option><option value="year">Full academic year</option></select></label>
+            <label class="bk-hours">Exception / teacher description <input id="bkDescription" placeholder="Required for Exc / Teacher"></label>
+          </div>
+          <div class="bk-legend">
+            <span><b>Svc</b> = Service done</span><span><b>Pay</b> = Payment (coverage chosen above)</span><span><b>NoSvc</b> = Parent cannot do service</span><span><b>Teach</b> = Parent is a teacher</span>
+            <span class="muted">Only one tick per month. Date is optional — if left empty, today's date is recorded. Months already fulfilled are locked.</span>
+          </div>
+          <div class="table-wrap bk-wrap"><table class="bk-table"><thead id="bkHead"></thead><tbody id="bkBody"></tbody></table></div>
+        </div>
+        <div class="bk-bar"><span id="bkCount">Nothing marked yet</span><button class="btn btn-secondary" id="bkClear" type="button">Clear marks</button><button class="btn btn-success" id="bkSave" type="button">💾 Save all</button></div>
+      </section>
+
+      <section id="page-whatsapp" class="page hidden">
+        <div class="page-title">
+          <div><h2>WhatsApp Reminder Message</h2><p>Design the message that opens in WhatsApp when someone taps "WhatsApp reminder" for a pending month. Admin only.</p></div>
+        </div>
+        <div class="wa-grid">
+          <div class="card">
+            <div class="field"><label>Language</label><select id="waLanguage"><option value="en">English</option><option value="te">Telugu</option><option value="hi">Hindi</option><option value="custom">Custom / keep my text</option></select></div>
+            <div class="field"><label>School name</label><input id="waSchool"></div>
+            <div class="field"><label>Greeting</label><textarea id="waGreeting" style="min-height:48px"></textarea></div>
+            <div class="field"><label>Description / reminder message</label><textarea id="waBody" style="min-height:150px"></textarea></div>
+            <div class="field"><label>Regards</label><textarea id="waRegards" style="min-height:60px"></textarea></div>
+            <div class="field"><label>Default country code <span class="muted small">(added when the phone number has only 10 digits)</span></label><input id="waCC" inputmode="numeric" style="max-width:120px"></div>
+            <div class="small muted" style="margin-bottom:4px"><strong>Variables</strong> — click one to insert it where your cursor is:</div>
+            <div class="wa-vars" id="waVars"></div>
+            <div class="modal-actions" style="justify-content:flex-start;margin-top:4px">
+              <button class="btn btn-primary" id="waSave" type="button">💾 Save message</button>
+              <button class="btn btn-secondary" id="waReset" type="button">Reset to default</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="section-head"><h3>Preview</h3><span class="small muted">with sample data</span></div>
+            <div class="wa-phone"><div class="wa-bubble" id="waPreview"></div></div>
+            <div class="small muted" style="margin-top:10px">The real message uses the actual student, parent, class and month. It opens in WhatsApp addressed to the parent's phone number saved on the student.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-users" class="page hidden">
+        <div class="page-title">
+          <div><h2>User Management</h2><p>Create accounts and choose what each person can access.</p></div>
+          <button class="btn btn-primary" id="addUserBtn">＋ Add User</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Username</th><th>Roles</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="usersTable"></tbody>
+          </table></div>
+          <div class="small muted" style="margin-top:12px">Admin: everything, including delete. Maintainer: day-to-day work (dashboard, students, service records, reports) without delete. The Bulk Fulfilment, Data Management and User Management roles each unlock one extra section. Viewer: sees only the sections you tick, with no add / edit / delete.</div>
+        </div>
+      </section>
+
+      <section id="page-data" class="page hidden">
+        <div class="page-title">
+          <div><h2>Data Management</h2><p>Export backups or restore data from a JSON backup.</p></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="section-head"><h3>Export backup</h3></div>
+            <p class="small muted">Downloads all students and service records currently stored in Firestore as one JSON backup file.</p>
+            <button class="btn btn-primary btn-full" id="exportJsonBtn">⬇ Export All Data</button>
+          </div>
+          <div class="card">
+            <div class="section-head"><h3>Import backup</h3></div>
+            <p class="small muted">Imports a JSON backup created by this application. Existing records are not deleted; matching IDs are overwritten.</p>
+            <label class="btn btn-secondary btn-full file-label">
+              ⬆ Choose JSON Backup
+              <input id="importJsonInput" type="file" accept=".json,application/json" hidden>
+            </label>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h3 style="margin-top:0">Firebase connection</h3>
+          <div class="notice">
+            <strong>Connected user:</strong> <span id="connectionUser"></span><br>
+            <strong>Database:</strong> Firestore<br>
+            <strong>Login:</strong> Firestore users<br>
+            <strong>App:</strong> Single-file web application
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</section>
+
+<!-- STUDENT DETAIL MODAL -->
+<div class="modal hidden" id="studentDetailModal">
+  <div class="modal-box" style="width:min(720px,100%)">
+    <div class="modal-head"><h3 id="sdTitle">Student</h3><button class="close" data-close="studentDetailModal">×</button></div>
+    <div id="sdBody"></div>
+  </div>
+</div>
+
+<!-- STUDENT MODAL -->
+<div class="modal hidden" id="studentModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="studentModalTitle">Add Student</h3><button class="close" data-close="studentModal">×</button></div>
+    <form id="studentForm">
+      <input type="hidden" id="studentId">
+      <div class="form-grid">
+        <div class="field"><label>Student Name *</label><input id="studentName" required></div>
+        <div class="field"><label>Roll No</label><input id="studentCode"></div>
+        <div class="field"><label>Class *</label><select id="studentClass" required></select></div>
+        
+        <div class="field"><label>Parent Name *</label><input id="parentName" required></div>
+        <div class="field"><label>Phone</label><input id="parentPhone" inputmode="tel"></div>
+        <div class="field full"><label>Parent service arrangement *</label>
+          <select id="serviceMode">
+            <option value="service">Parent does service (2 hours / month)</option>
+            <option value="pay">Pays money instead of service</option>
+            <option value="exception">Exception — parent cannot do the work</option>
+            <option value="teacher">Exception — parent is a teacher</option>
+            <option value="other">Other arrangement</option>
+          </select></div>
+        <div class="field hidden" id="payAmountWrap"><label>Amount per month (₹) *</label><input id="payAmount" type="number" min="0" step="1"></div>
+        <div class="field hidden" id="exceptionUntilWrap"><label>Exception valid until (optional)</label><input id="exceptionUntil" type="month"></div>
+        <div class="field full hidden" id="modeNoteWrap"><label id="modeNoteLabel">Details</label><textarea id="modeNote"></textarea></div>
+        <div class="field full hidden" id="studentOtherWrap"><label>Other arrangement description <span class="muted small">(optional)</span></label><textarea id="studentOtherDescription" placeholder="Describe the other arrangement"></textarea></div>
+        <div class="field full"><label>Address / Notes</label><textarea id="studentNotes"></textarea></div>
+        <div class="field full">
+          <label><input id="studentActive" type="checkbox" checked style="width:auto;margin-right:7px"> Active student</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close="studentModal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Student</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SERVICE MODAL -->
+<div class="modal hidden" id="serviceModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="serviceModalTitle">Add Service</h3><button class="close" data-close="serviceModal">×</button></div>
+    <form id="serviceForm">
+      <input type="hidden" id="serviceId">
+      <div class="form-grid">
+        <div class="field"><label>Class *</label><select id="serviceClass"></select></div>
+        <div class="field"><label>Student *</label><select id="serviceStudent" required></select></div>
+        <div class="field full hist hidden" id="serviceHistory"></div>
+        <div class="field full"><label>Fulfilment type *</label><select id="serviceType">
+          <option value="service">Service (work done by parent)</option>
+          <option value="payment">Payment instead of service</option>
+          <option value="exception">Parent cannot do service</option>
+          <option value="teacher">Parent is a teacher</option></select></div>
+        <div class="field"><label>Date *</label><input id="serviceDate" type="date" required></div>
+        <div class="field"><label>Counts towards month *</label><select id="serviceForMonth" required></select></div>
+        <div class="field"><label>Start time <span class="muted small">(optional)</span></label><input id="serviceStart" type="time"></div>
+        <div class="field"><label>End time <span class="muted small">(optional)</span></label><input id="serviceEnd" type="time"></div>
+        <div class="field"><label>Hours * <span class="muted small">(auto from times, or type directly)</span></label><input id="serviceHours" type="number" min="0" step="any" value="2" required></div>
+        <div class="field"><label>Amount paid (₹) *</label><input id="servicePayAmount" type="number" min="0" step="1"></div>
+        <div class="field"><label>Payment mode</label><select id="servicePayMode"><option>Cash</option><option>UPI</option><option>Bank transfer</option><option>Cheque</option><option>Other</option></select></div>
+        <div class="field"><label>Receipt no.</label><input id="serviceReceipt"></div>
+        <div class="field"><label>Payment covers</label><select id="serviceCover"><option value="month">This month only</option><option value="year">Full academic year (paid at once)</option><option value="months">Selected months</option></select></div>
+        <div class="field hidden" id="serviceMonthsWrap"><label>Select months to cover *</label><div id="serviceMonths" class="role-box"></div><div class="small muted" style="margin-top:6px">The amount entered above is divided across the selected months for monthly status/reporting.</div></div>
+        <div class="field"><label>Academic year</label><select id="serviceAY"></select></div>
+        <div class="field full">
+          <label>Activity *</label>
+          <select id="serviceActivity" required>
+            <option value="">Select activity</option>
+            <option>Cleaning school premises</option>
+            <option>Gardening / landscaping</option>
+            <option>Classroom maintenance</option>
+            <option>Grounds maintenance</option>
+            <option>Painting / repair assistance</option>
+            <option>Organizing materials</option>
+            <option>School event support</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field full hidden" id="serviceOtherActivityWrap"><label>Other activity description *</label><textarea id="serviceOtherActivity" placeholder="Describe the activity"></textarea></div>
+        <div class="field"><label>Service done by</label><select id="serviceBy"><option value="parent">Registered parent</option><option value="other">Other person</option></select></div>
+        <div class="field hidden"><label>Person's name *</label><input id="serviceByName"></div>
+        <div class="field hidden"><label>Relationship (optional)</label><input id="serviceByRel" placeholder="e.g. uncle, grandmother, neighbour"></div>
+        <div class="field full"><label>Notes</label><textarea id="serviceNotes" placeholder="Optional details about the work completed"></textarea></div>
+        <div class="field full hidden" id="serviceReasonWrap"><label>Reason for adjustment <span class="muted small">(required if hours, amount, type, date or student change)</span></label><input id="serviceReason" placeholder="Why is this being adjusted?"></div>
+        <div class="field full hidden" id="serviceLogWrap"><label>Change log</label><div id="serviceLog" class="notice"></div></div>
+      </div>
+      <div id="serviceDuplicateWarning" class="error hidden"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close="serviceModal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Service</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal hidden" id="userModal"><div class="modal-box">
+  <div class="modal-head"><h3 id="userModalTitle">Add User</h3><button class="close" data-close="userModal">×</button></div>
+  <form id="userForm" autocomplete="off">
+    <input type="hidden" id="userEditId">
+    <div class="form-grid">
+      <div class="field"><label>Username *</label><input id="newUsername" autocomplete="off" required></div>
+      <div class="field"><label id="userPwLabel">Password *</label><input id="newPassword" type="text" autocomplete="new-password"></div>
+      <div class="field full"><label>Roles * <span class="muted small">(tick one or more)</span></label><div id="userRoleBox" class="role-box"></div></div>
+      <div class="field full hidden" id="userViewBox"><label>Sections this user can see <span class="muted small">(view only — no add / edit / delete)</span></label><div id="userViewList" class="role-box"></div></div>
+      <div class="field full"><label class="role-opt" style="margin:0"><input type="checkbox" id="userActive" checked style="width:auto"> <span><strong>Account active</strong><br><span class="small muted">Untick to block this user from signing in without deleting the account.</span></span></label></div>
+    </div>
+    <div id="userError" class="error hidden"></div>
+    <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="userModal">Cancel</button><button type="submit" class="btn btn-primary">Save User</button></div>
+  </form></div></div>
+
+<input type="file" id="unusedFile" hidden>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   1. FIREBASE CONFIGURATION
+   ------------------------------------------------------------
+   Replace the values below with your Firebase Web App config.
+   Firebase Console:
+   Project settings -> Your apps -> Web app -> SDK setup/config
+   ============================================================ */
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUbodJ-Q_0schFsiYOWZACqNYQA7gNXIQ",
+    authDomain: "parents-service-tracking.firebaseapp.com",
+    projectId: "parents-service-tracking",
+    storageBucket: "parents-service-tracking.firebasestorage.app",
+    messagingSenderId: "314199198035",
+    appId: "1:314199198035:web:e22a3460b6566fca8d39a6"
+  };
+
+/* ============================================================
+   2. FIREBASE INITIALIZATION
+   ============================================================ */
+let db;
+/* ---------- ROLES & ACCESS ---------- */
+const ROLES=[
+  {k:"admin",label:"Admin",desc:"Full access to every section, including all Delete buttons and User Management."},
+  {k:"maintainer",label:"Maintainer",desc:"Day-to-day user: Dashboard, Students & Parents, Service Records, Monthly Report, Class & Student Reports. Can add and edit, cannot delete."},
+  {k:"bulkfulfilment",label:"Bulk Fulfilment",desc:"Can open the Bulk Fulfilment page."},
+  {k:"datamanagement",label:"Data Management",desc:"Can open Data Management (export / import backups)."},
+  {k:"usermanagement",label:"User Management",desc:"Can add and edit users (cannot create admins or delete users)."},
+  {k:"viewer",label:"Viewer (view only)",desc:"Can only look at the sections you tick below. No adding, editing, deleting, importing or sending. Cannot be combined with other roles."}
+];
+const VIEW_SECTIONS=[["dashboard","Dashboard"],["students","Students & Parents"],["services","Service Records"],["reports","Monthly Report"],["classreports","Class & Student Reports"],["bulk","Bulk Fulfilment"],["data","Data Management (export only)"]];
+const PAGE_ROLE={dashboard:"maintainer",students:"maintainer",services:"maintainer",reports:"maintainer",classreports:"maintainer",bulk:"bulkfulfilment",data:"datamanagement",users:"usermanagement",whatsapp:"admin"};
+function getRoles(u){
+  u=u||{};
+  if(Array.isArray(u.roles)&&u.roles.length) return u.roles.map(r=>String(r).toLowerCase());
+  const r=String(u.role||"").toLowerCase();
+  if(r==="admin") return ["admin"];
+  return [ROLES.some(x=>x.k===r)?r:"maintainer"]; // old accounts (role "user") become Maintainer
+}
+function myRoles(){return getRoles(getLoggedInUser())}
+function isAdmin(){return myRoles().includes("admin")}
+function isReadOnly(){return !isAdmin()&&myRoles().includes("viewer")}
+function viewSections(){const u=getLoggedInUser()||{};return Array.isArray(u.viewSections)?u.viewSections:["dashboard"]}
+function canPage(page){
+  if(isAdmin()) return true;
+  if(isReadOnly()) return viewSections().includes(page);
+  return myRoles().includes(PAGE_ROLE[page]);
+}
+function roleLabel(k){return (ROLES.find(r=>r.k===k)||{label:k}).label}
+function firstAllowedPage(){return ["dashboard","students","services","reports","classreports","bulk","data","users","whatsapp"].find(canPage)||null}
+function applyAccess(){
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("hidden",!canPage(b.dataset.page)));
+  document.body.classList.toggle("readonly",isReadOnly());
+  const u=getLoggedInUser()||{};
+  $("userEmail").textContent=(u.username||"")+" · "+myRoles().map(roleLabel).join(", ");
+}
+function getLoggedInUser(){try{return JSON.parse(sessionStorage.getItem("sssvv_logged_in")||"null")}catch(e){return null}}
+function setLoggedInUser(x){if(x)sessionStorage.setItem("sssvv_logged_in",JSON.stringify(x));else sessionStorage.removeItem("sssvv_logged_in");}
+try {
+  if (firebaseConfig.apiKey.startsWith("PASTE_")) {
+    throw new Error("Firebase configuration has not been filled in.");
+  }
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+} catch (e) {
+  document.getElementById("loadingText").textContent = e.message;
+  setTimeout(() => {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("loginScreen").classList.remove("hidden");
+    showLoginError("Please open index.html in a text editor and enter your Firebase Web App configuration in the firebaseConfig section.");
+  }, 600);
+}
+
+/* ============================================================
+   3. STATE
+   ============================================================ */
+let students = [];
+let services = [];
+let editingStudentId = null;
+let editingServiceId = null;
+
+const $ = id => document.getElementById(id);
+
+function todayISO() {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0,10);
+}
+function currentMonth() { return todayISO().slice(0,7); }
+function monthLabel(m) {
+  if (!m) return "";
+  const [y,mo] = m.split("-");
+  return new Date(Number(y), Number(mo)-1, 1).toLocaleString(undefined,{month:"long",year:"numeric"});
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+function showToast(msg) {
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>t.classList.remove("show"),2500);
+}
+function showLoginError(msg) { $("loginError").textContent=msg; $("loginError").classList.remove("hidden"); }
+function clearLoginError() { $("loginError").classList.add("hidden"); }
+function setLoading(show, text="Loading…") {
+  $("loadingText").textContent=text;
+  $("loading").classList.toggle("hidden",!show);
+}
+function openModal(id){ $(id).classList.remove("hidden"); }
+function closeModal(id){ $(id).classList.add("hidden"); }
+
+/* ============================================================
+   4. SIMPLE FIRESTORE LOGIN
+   Users are stored directly in the Firestore "users" collection.
+   Passwords are stored as requested for this simple internal app.
+   ============================================================ */
+function showAppForLocalUser(user){
+  $("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");
+  $("connectionUser").textContent=user.username;
+  applyAccess();
+  const first=firstAllowedPage();
+  if(!first){alert("Your account has no access assigned. Please contact the administrator.");setLoggedInUser(null);showLogin();return;}
+  loadData().then(()=>navigate(first));
+}
+function showLogin(){document.body.classList.remove("readonly");$("app").classList.add("hidden");$("loginScreen").classList.remove("hidden");$("loginPassword").value="";}
+
+$("loginForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  clearLoginError();
+  const username=$("loginEmail").value.trim(), password=$("loginPassword").value;
+  if(!username || !password){showLoginError("Please enter username and password.");return;}
+  try {
+    setLoading(true,"Checking login…");
+    const snap=await db.collection("users").where("usernameLower","==",username.toLowerCase()).limit(1).get();
+    setLoading(false);
+    if(snap.empty){showLoginError("Invalid username or password.");return;}
+    const userDoc=snap.docs[0];
+    const user={id:userDoc.id,...userDoc.data()};
+    if(user.password!==password){showLoginError("Invalid username or password.");return;}
+    if(user.active===false){showLoginError("This account is disabled. Please contact the administrator.");return;}
+    setLoggedInUser({username:user.username,roles:getRoles(user),viewSections:user.viewSections||[],id:user.id});
+    showAppForLocalUser(user);
+  } catch(err) {
+    setLoading(false);
+    showLoginError("Login failed: "+err.message);
+  }
+});
+
+$("logoutBtn").addEventListener("click",()=>{setLoggedInUser(null);showLogin();});
+setTimeout(async()=>{
+  setLoading(false);
+  let user=getLoggedInUser();
+  if(!user){showLogin();return;}
+  try{ // refresh roles / active flag from the database on every page load
+    const d=await db.collection("users").doc(user.id).get();
+    if(!d.exists||d.data().active===false){setLoggedInUser(null);showLogin();return;}
+    const x=d.data(); user={id:d.id,username:x.username,roles:getRoles(x),viewSections:x.viewSections||[]}; setLoggedInUser(user);
+  }catch(e){}
+  showAppForLocalUser(user);
+},250);
+
+/* ============================================================
+   5. FIRESTORE LOAD
+   ============================================================ */
+async function loadData() {
+  try {
+    setLoading(true,"Loading students and service records…");
+    const [studentSnap, serviceSnap] = await Promise.all([
+      db.collection("students").orderBy("name").get(),
+      db.collection("service_records").orderBy("date","desc").get()
+    ]);
+    students=studentSnap.docs.map(d=>({id:d.id,...d.data()}));
+    services=serviceSnap.docs.map(d=>({id:d.id,...d.data()}));
+    try{const t=await db.collection("settings").doc("whatsapp_template").get(); waTpl=t.exists?t.data():null;}catch(e){}
+    renderAll();
+    setLoading(false);
+  } catch(e) {
+    setLoading(false);
+    alert("Could not load Firestore data.\\n\\n" + (e.message || e));
+  }
+}
+
+async function saveStudent(data,id=null) {
+  if(isReadOnly()) throw new Error("You have view-only access.");
+  if (id) await db.collection("students").doc(id).set({...data,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  else await db.collection("students").add({...data,createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+}
+async function saveService(data,id=null) {
+  if(isReadOnly()) throw new Error("You have view-only access.");
+  if (id) await db.collection("service_records").doc(id).set({...data,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  else await db.collection("service_records").add({...data,createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+}
+
+/* ============================================================
+   6. NAVIGATION
+   ============================================================ */
+document.querySelectorAll(".nav-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{if(btn.dataset.page!=="students") dashboardStudentFilter=""; navigate(btn.dataset.page);});
+});
+document.querySelectorAll("[data-page-link]").forEach(btn=>{
+  btn.addEventListener("click",()=>navigate(btn.dataset.pageLink));
+});
+$("menuBtn").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
+
+function navigate(page) {
+  if(!canPage(page)){showToast("You do not have access to that section.");return;}
+  document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
+  $("page-"+page).classList.remove("hidden");
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+  $("sidebar").classList.remove("open");
+  if(page==="reports") renderReport();
+  if(page==="classreports") renderClassReport();
+  if(page==="bulk") renderBulk();
+  if(page==="users") renderUsers();
+  if(page==="whatsapp") renderWaDesigner();
+}
+
+/* ============================================================
+   7. STUDENT CRUD
+   ============================================================ */
+$("addStudentBtn").addEventListener("click",()=>openStudentModal());
+const CLASS_LIST=["Nursery","LKG","UKG","1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"];
+const MODE_LABEL={service:"Parent does service",pay:"Pays instead of service",exception:"Exception — cannot do the work",teacher:"Exception — parent is a teacher",other:"Other arrangement"};
+function studentMode(s){return s.serviceMode||"service"}
+function exceptionActive(s,month){return !s.exceptionUntil||month<=s.exceptionUntil}
+function fillClassSelect(sel=""){
+  const list=CLASS_LIST.slice(); if(sel&&!list.includes(sel)) list.push(sel); // keeps older free-text classes intact
+  $("studentClass").innerHTML='<option value="">Select class</option>'+list.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  $("studentClass").value=sel;
+}
+function toggleModeFields(){
+  const m=$("serviceMode").value;
+  $("payAmountWrap").classList.toggle("hidden",m!=="pay");
+  $("exceptionUntilWrap").classList.toggle("hidden",m!=="exception");
+  $("modeNoteWrap").classList.toggle("hidden",m==="service"||m==="other");
+  $("studentOtherWrap").classList.toggle("hidden",m!=="other");
+  $("payAmount").required=m==="pay";
+  $("modeNote").required=m==="exception"||m==="teacher";
+  $("studentOtherDescription").required=false;
+  $("modeNoteLabel").textContent=m==="teacher"?"Teacher details (name / subject / class)":m==="pay"?"Payment details (optional)":m==="exception"?"Reason for exception *":"Details";
+}
+$("serviceMode").addEventListener("change",toggleModeFields);
+fillClassSelect();
+
+$("studentForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const id=$("studentId").value || null;
+  const mode=$("serviceMode").value;
+  const data={
+    name:$("studentName").value.trim(),
+    code:$("studentCode").value.trim(),
+    className:$("studentClass").value.trim(),
+    
+    parentName:$("parentName").value.trim(),
+    phone:$("parentPhone").value.trim(),
+    notes:$("studentNotes").value.trim(),
+    active:$("studentActive").checked,
+    serviceMode:mode,
+    payAmount:mode==="pay"?Number($("payAmount").value||0):0,
+    exceptionUntil:mode==="exception"?$("exceptionUntil").value:"",
+    modeNote:mode==="service"||mode==="other"?"":$("modeNote").value.trim(),
+    otherDescription:mode==="other"?$("studentOtherDescription").value.trim():""
+  };
+  if(!data.name || !data.className || !data.parentName) return;
+  const dupKey=(data.name+"|"+data.parentName).toLowerCase().replace(/\s+/g," ").trim();
+  if(students.some(x=>x.id!==id && ((String(x.name||"")+"|"+String(x.parentName||"")).toLowerCase().replace(/\s+/g," ").trim())===dupKey))
+    return alert("A student with the same Student Name and Father/Parent Name already exists.");
+  if(data.code && students.some(x=>x.id!==id && x.className===data.className && String(x.code||"").toLowerCase()===data.code.toLowerCase())) return alert("Roll no. "+data.code+" already exists in "+data.className+".");
+  if(mode==="pay" && !(data.payAmount>0)) return alert("Enter the monthly amount the parent will pay.");
+  try{
+    await saveStudent(data,id);
+    await loadData();
+    closeModal("studentModal");
+    showToast(id ? "Student updated." : "Student added.");
+  }catch(e){alert("Could not save student: "+e.message)}
+});
+
+function openStudentModal(student=null) {
+  if(isReadOnly()) return;
+  $("studentForm").reset();
+  editingStudentId=student?.id||null;
+  $("studentId").value=student?.id||"";
+  $("studentModalTitle").textContent=student?"Edit Student":"Add Student";
+  $("studentName").value=student?.name||"";
+  $("studentCode").value=student?.code||"";
+  fillClassSelect(student?.className||"");
+  
+  $("parentName").value=student?.parentName||"";
+  $("parentPhone").value=student?.phone||"";
+  $("studentNotes").value=student?.notes||"";
+  $("studentActive").checked=student?.active !== false;
+  $("serviceMode").value=student?studentMode(student):"service";
+  $("payAmount").value=student?.payAmount||"";
+  $("exceptionUntil").value=student?.exceptionUntil||"";
+  $("modeNote").value=student?.modeNote||"";
+  $("studentOtherDescription").value=student?.otherDescription||"";
+  toggleModeFields();
+  openModal("studentModal");
+}
+
+async function deleteStudent(id) {
+  if(!isAdmin()) return alert("Only an admin can delete students.");
+  const s=students.find(x=>x.id===id);
+  if(!s) return;
+  if(!confirm(`Delete "${s.name}"?\\n\\nExisting service records will remain.`)) return;
+  try{
+    await db.collection("students").doc(id).delete();
+    await loadData(); showToast("Student deleted.");
+  }catch(e){alert("Could not delete student: "+e.message)}
+}
+
+function modeCell(s){
+  const m=studentMode(s), note=s.modeNote?`<div class="small muted">${escapeHtml(s.modeNote)}</div>`:"";
+  if(m==="pay") return `<span class="badge badge-blue">Pays ₹${escapeHtml(s.payAmount||0)} / month</span>${note}`;
+  if(m==="exception") return `<span class="badge badge-orange">Exception${s.exceptionUntil?" till "+escapeHtml(monthLabel(s.exceptionUntil)):""}</span>${note}`;
+  if(m==="teacher") return `<span class="badge badge-orange">Parent is a teacher</span>${note}`;
+  if(m==="other") return `<span class="badge badge-blue">Other arrangement</span>${s.otherDescription?`<div class="small muted">${escapeHtml(s.otherDescription)}</div>`:""}${note}`;
+  return `<span class="small muted">Does service</span>`;
+}
+function cmpStudents(a,b){
+  const ci=x=>{const i=CLASS_LIST.indexOf(x.className);return i<0?99:i};
+  if(ci(a)!==ci(b)) return ci(a)-ci(b);
+  const ra=parseInt(a.code,10), rb=parseInt(b.code,10);
+  if(!isNaN(ra)&&!isNaN(rb)&&ra!==rb) return ra-rb;
+  if(isNaN(ra)!==isNaN(rb)) return isNaN(ra)?1:-1;
+  return (a.name||"").localeCompare(b.name||"");
+}
+function toggleSearchMode(reset){
+  const by=$("studentSearchBy").value;
+  $("studentClassFilter").classList.toggle("hidden",by!=="class");
+  $("studentSearch").classList.toggle("hidden",by==="class");
+  $("studentSearch").placeholder=by==="roll"?"Enter roll no…":"Type student name…";
+  if(reset){$("studentSearch").value="";$("studentClassFilter").value="";}
+}
+function openDashboardStudents(kind){
+  dashboardStudentFilter=kind;
+  if(!canPage("students")){showToast("You do not have access to Students & Parents.");return;}
+  navigate("students");
+  renderStudents();
+  setTimeout(()=>$("studentsTable").scrollIntoView({behavior:"smooth",block:"start"}),80);
+}
+window.openDashboardStudents=openDashboardStudents;
+
+function renderStudents() {
+  const by=$("studentSearchBy").value, q=$("studentSearch").value.toLowerCase().trim();
+  const status=$("studentStatusFilter").value;
+  $("clearDashboardStudentFilter").classList.toggle("hidden",!dashboardStudentFilter);
+  fillClassFilter();
+  const cf=$("studentClassFilter").value, mf=$("studentModeFilter").value, ms=$("studentMonthFilter").value;
+  const searched=dashboardStudentFilter || (by==="class"?!!cf:!!q);
+  if(!searched){
+    $("studentsTable").innerHTML=`<tr><td colspan="8" class="empty">Select a class, or search by roll no or name, to see students.</td></tr>`;
+    return;
+  }
+  const sm={}; monthlyStatus(currentMonth()).forEach(x=>{sm[x.student.id]=x});
+  const rows=students.filter(s=>{
+    const matchesStatus=status==="all" || (status==="active" ? s.active!==false : s.active===false);
+    const hit=dashboardStudentFilter ? true : (by==="class"?s.className===cf:by==="roll"?String(s.code||"").toLowerCase().includes(q):String(s.name||"").toLowerCase().includes(q));
+    const ds=dashboardStudentFilter==="all" ? true :
+      dashboardStudentFilter==="fulfilled" ? (sm[s.id]&&sm[s.id].completed) :
+      dashboardStudentFilter==="pending" ? (sm[s.id]&&sm[s.id].state==="pending") : true;
+    return matchesStatus && hit && ds && (!dashboardStudentFilter||((!mf||studentMode(s)===mf)&&(!ms||(ms==="prev"?(s.active!==false&&prevPendingCount(s)>0):(sm[s.id]&&sm[s.id].state===ms))))) ;
+  }).sort(cmpStudents);
+  $("studentsTable").innerHTML=rows.length ? rows.map(s=>`
+    <tr>
+      <td><strong style="cursor:pointer;color:var(--primary)" onclick="openStudentDetail('${s.id}')">${escapeHtml(s.name)}</strong><div class="small muted">${s.code?"Roll no. "+escapeHtml(s.code):""}</div></td>
+      <td>${escapeHtml(s.className)} ${escapeHtml(s.section||"")}</td>
+      <td>${escapeHtml(s.parentName)}</td>
+      <td>${escapeHtml(s.phone||"—")}</td>
+      <td>${modeCell(s)}</td>
+      <td>${monthCell(sm[s.id])}${prevBadge(s)}</td>
+      <td><span class="badge ${s.active!==false?"badge-green":"badge-red"}">${s.active!==false?"Active":"Inactive"}</span></td>
+      <td>
+        ${dashboardStudentFilter==="pending"&&sm[s.id]&&sm[s.id].state==="pending"?`<button class="btn btn-wa btn-small" title="WhatsApp reminder" aria-label="WhatsApp reminder" onclick="sendWA('${s.id}','${currentMonth()}')">💬</button>`:""}
+        <button class="btn btn-primary btn-small" onclick="openStudentDetail('${s.id}')">View</button>
+        <button class="btn btn-secondary btn-small" onclick="openStudentModalById('${s.id}')">Edit</button>
+        ${isAdmin()?`<button class="btn btn-danger btn-small" onclick="deleteStudent('${s.id}')">Delete</button>`:""}
+      </td>
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">No students found.</td></tr>`;
+}
+$("studentSearchBy").addEventListener("change",()=>{toggleSearchMode(true);renderStudents();});
+toggleSearchMode(false);
+window.openStudentModalById=id=>openStudentModal(students.find(s=>s.id===id));
+window.deleteStudent=deleteStudent;
+$("studentSearch").addEventListener("input",renderStudents);
+$("clearDashboardStudentFilter").addEventListener("click",()=>{dashboardStudentFilter="";$("clearDashboardStudentFilter").classList.add("hidden");renderStudents();});
+$("studentStatusFilter").addEventListener("change",renderStudents);
+["studentClassFilter","studentModeFilter","studentMonthFilter"].forEach(id=>$(id).addEventListener("change",renderStudents));
+
+/* ============================================================
+   8. SERVICE CRUD
+   ============================================================ */
+$("addServiceBtn").addEventListener("click",()=>openServiceModal());
+$("quickServiceBtn").addEventListener("click",()=>openServiceModal());
+
+function fillServiceClass(sel=""){
+  const list=CLASS_LIST.slice();
+  students.forEach(x=>{if(x.className&&!list.includes(x.className)) list.push(x.className)});
+  $("serviceClass").innerHTML='<option value="">Select class</option>'+list.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  $("serviceClass").value=sel;
+}
+function populateStudentSelect(selectedId="",cls="") {
+  const list=students.filter(x=>cls&&x.className===cls&&(x.active!==false||x.id===selectedId))
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  $("serviceStudent").innerHTML=(cls?'<option value="">Select student</option>':'<option value="">Select class first</option>')+
+    list.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}${x.code?" — Roll "+escapeHtml(x.code):""}${x.parentName?" ("+escapeHtml(x.parentName)+")":""}</option>`).join("");
+  $("serviceStudent").value=selectedId;
+}
+
+function toggleCoverFields(){
+  const isP=$("serviceType").value==="payment";
+  const cov=$("serviceCover").value;
+  $("serviceCover").closest(".field").classList.toggle("hidden",!isP);
+  $("serviceAY").closest(".field").classList.toggle("hidden",!(isP&&(cov==="year"||cov==="months")));
+  $("serviceMonthsWrap").classList.toggle("hidden",!(isP&&cov==="months"));
+}
+function toggleByFields(){
+  const t=$("serviceType").value, show=t==="service"||t==="payment", other=show&&$("serviceBy").value==="other";
+  const st=students.find(x=>x.id===$("serviceStudent").value);
+  $("serviceBy").options[0].textContent="Registered parent"+(st&&st.parentName?" — "+st.parentName:"");
+  $("serviceBy").previousElementSibling.textContent=t==="payment"?"Paid by":"Service done by";
+  $("serviceBy").closest(".field").classList.toggle("hidden",!show);
+  $("serviceByName").closest(".field").classList.toggle("hidden",!other);
+  $("serviceByRel").closest(".field").classList.toggle("hidden",!other);
+  $("serviceByName").required=other;
+}
+$("serviceBy").addEventListener("change",toggleByFields);
+function toggleServiceType(){
+  toggleCoverFields();
+  toggleByFields();
+  const t=$("serviceType").value, isS=t==="service", isP=t==="payment", isExc=t==="exception"||t==="teacher";
+  ["serviceStart","serviceEnd","serviceHours","serviceActivity","serviceOtherActivityWrap"].forEach(id=>$(id).closest(".field").classList.toggle("hidden",!isS || id==="serviceOtherActivityWrap"));
+  ["servicePayAmount","servicePayMode","serviceReceipt"].forEach(id=>$(id).closest(".field").classList.toggle("hidden",!isP));
+  const old=editingServiceId?services.find(x=>x.id===editingServiceId):null;
+  $("serviceStart").required=$("serviceEnd").required=false; // times are optional; hours can be typed directly
+  $("serviceHours").required=isS; $("serviceActivity").required=isS;
+  $("servicePayAmount").required=isP;
+  $("serviceNotes").required=isExc;
+  $("serviceOtherActivity").required=isS && $("serviceActivity").value==="Other";
+  $("serviceOtherActivityWrap").classList.toggle("hidden",!(isS && $("serviceActivity").value==="Other"));
+  if(isP && !$("servicePayAmount").value){
+    const st=students.find(x=>x.id===$("serviceStudent").value);
+    if(st && st.payAmount) $("servicePayAmount").value=$("serviceCover").value==="year"?st.payAmount*12:st.payAmount;
+  }
+}
+function autoHours(){
+  const a=$("serviceStart").value,b=$("serviceEnd").value; if(!a||!b) return;
+  const [h1,m1]=a.split(":").map(Number),[h2,m2]=b.split(":").map(Number);
+  const mins=(h2*60+m2)-(h1*60+m1);
+  if(mins>0) $("serviceHours").value=Math.round(mins/60*100)/100;
+}
+$("serviceType").addEventListener("change",toggleServiceType);
+$("serviceActivity").addEventListener("change",toggleServiceType);
+$("serviceStudent").addEventListener("change",toggleServiceType);
+$("serviceStart").addEventListener("input",autoHours);
+$("serviceEnd").addEventListener("input",autoHours);
+
+function fmtStamp(iso){const d=new Date(iso);return isNaN(d)?"":d.toLocaleString(undefined,{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+function recDesc(r){
+  const t=r.type||"service";
+  const by=r.doneBy==="other"&&r.doneByName?` · by ${r.doneByName}${r.doneByRelation?" ("+r.doneByRelation+")":""}`:"";
+  if(t==="payment") return `₹${r.amount||0} paid${r.coverage==="year"?" for full academic year "+ayLabel(r.academicYear):r.coverage==="months"?" for selected months":""}${r.payMode?" · "+r.payMode:""}${r.receiptNo?" · #"+r.receiptNo:""}${by}`;
+  if(t==="exception") return `Parent cannot do service${r.notes?" — "+r.notes:""}`;
+  if(t==="teacher") return `Parent is a teacher${r.notes?" — "+r.notes:""}`;
+  return `${r.hours} h${r.startTime&&r.endTime?" ("+fmtTime(r.startTime)+" – "+fmtTime(r.endTime)+")":""}${r.activity?(r.activity==="Other"&&r.otherActivity?" · Other: "+r.otherActivity:" · "+r.activity):""}${by}`;
+}
+function renderServiceHistory(){
+  const box=$("serviceHistory"), st=students.find(x=>x.id===$("serviceStudent").value);
+  if(!st){box.classList.add("hidden");box.innerHTML="";return;}
+  const recs=services.filter(x=>x.studentId===st.id);
+  const months=[...new Set(recs.map(x=>x.month).filter(Boolean).concat(ayMonths(ayOf(currentMonth()))))].sort().reverse();
+  box.classList.remove("hidden");
+  box.innerHTML=`<div class="section-head"><h3>${escapeHtml(st.name)} — service history</h3></div><div>${modeCell(st)}</div>`+
+    months.map(m=>{
+      const mr=recs.filter(r=>r.month===m).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+      const x=statusFor(st,m,mr);
+      const badge=x.state==="completed"?"badge-green":x.state==="paid"?"badge-blue":x.state==="exempt"?"badge-orange":"badge-red";
+      const left=x.state==="pending"&&x.mode!=="pay"?` · needs ${Math.max(0,Math.round((2-x.hours)*100)/100)} h more`:"";
+      return `<div class="hist-month"><div><strong>${escapeHtml(monthLabel(m))}</strong> <span class="badge ${badge}">${escapeHtml(x.label)}</span> <span class="small muted">${x.hours} h done${left}</span></div>`+
+        (mr.length?mr.map(r=>`<div class="hist-row${r.id===editingServiceId?" cur":""}"><span><strong>${escapeHtml(r.date)}</strong> · ${escapeHtml(recDesc(r))}${(r.log||[]).some(l=>l.action==="edited")?" ✎":""}</span><button type="button" class="btn btn-secondary btn-small" onclick="editFromHistory('${r.id}')">Adjust</button></div>`).join(""):'<div class="small muted">No records this month.</div>')+`</div>`;
+    }).join("");
+}
+window.editFromHistory=id=>{const r=services.find(x=>x.id===id); if(r) openServiceModal(r);};
+function renderServiceLog(service){
+  const w=$("serviceLogWrap");
+  if(!service){w.classList.add("hidden");return;}
+  w.classList.remove("hidden");
+  const log=(service.log||[]).slice().reverse();
+  $("serviceLog").innerHTML=log.length?log.map(l=>`<div class="small" style="margin-bottom:7px"><strong>${escapeHtml(fmtStamp(l.at))}</strong> · ${escapeHtml(l.by||"")} · ${escapeHtml(l.action)}${l.summary?" ("+escapeHtml(l.summary)+")":""}${l.reason?" — "+escapeHtml(l.reason):""}${(l.changes||[]).map(c=>`<div class="muted">${escapeHtml(c.f)}: ${escapeHtml(c.from===""?"—":c.from)} → ${escapeHtml(c.to===""?"—":c.to)}</div>`).join("")}</div>`).join(""):'<div class="small muted">No changes logged yet.</div>';
+}
+$("serviceClass").addEventListener("change",()=>{populateStudentSelect("",$("serviceClass").value);renderServiceHistory();toggleServiceType();});
+$("serviceStudent").addEventListener("change",renderServiceHistory);
+
+function fillAYSelect(sel){
+  $("serviceAY").innerHTML=ayList().map(a=>`<option value="${a}">${ayLabel(a)} (Jun ${a} – May ${a+1})</option>`).join("");
+  $("serviceAY").value=String(sel);
+}
+$("serviceAY").addEventListener("change",()=>{if($("serviceCover").value==="months") fillPaymentMonths();});
+$("serviceCover").addEventListener("change",()=>{
+  const st=students.find(x=>x.id===$("serviceStudent").value), a=$("servicePayAmount");
+  if(st && st.payAmount && $("serviceType").value==="payment"){
+    const m=Number(st.payAmount), y=m*12;
+    if(!a.value||Number(a.value)===m||Number(a.value)===y) a.value=$("serviceCover").value==="year"?y:m;
+  }
+  toggleServiceType();
+});
+function fillForMonthSelect(sel){
+  const set=new Set(ayList().flatMap(a=>ayMonths(a)));
+  services.forEach(r=>{if(r.month) set.add(r.month)});
+  set.add(currentMonth()); if(sel) set.add(sel);
+  $("serviceForMonth").innerHTML=[...set].sort().map(m=>`<option value="${m}">${escapeHtml(monthLabel(m))}</option>`).join("");
+  $("serviceForMonth").value=sel||currentMonth();
+}
+
+function fillPaymentMonths(selected=[]){
+  const ay=Number($("serviceAY").value)||ayOf(currentMonth()), months=ayMonths(ay);
+  const chosen=new Set(selected||[]);
+  $("serviceMonths").innerHTML=months.map(m=>`<label class="month-check"><input type="checkbox" value="${m}" ${chosen.has(m)?"checked":""}> <span>${escapeHtml(monthLabel(m))}</span></label>`).join("");
+}
+function openServiceModal(service=null,preset=null) {
+  if(isReadOnly()) return;
+  $("serviceForm").reset();
+  $("serviceDuplicateWarning").classList.add("hidden");
+  editingServiceId=service?.id||null;
+  $("serviceId").value=service?.id||"";
+  $("serviceModalTitle").textContent=service?"Edit / Adjust Service":"Add Service";
+  const st=service?students.find(x=>x.id===service.studentId):(preset?students.find(x=>x.id===preset.studentId):null);
+  fillServiceClass(st?.className||"");
+  populateStudentSelect(service?.studentId||preset?.studentId||"",st?.className||"");
+  $("serviceType").value=service?.type||preset?.type||"service";
+  $("serviceDate").value=service?.date||preset?.date||todayISO();
+  fillForMonthSelect(service?(service.month||(service.date||"").slice(0,7)):(preset?.month||currentMonth()));
+  $("serviceStart").value=service?.startTime||"";
+  $("serviceEnd").value=service?.endTime||"";
+  $("serviceHours").value=service?.hours ?? 2;
+  $("serviceActivity").value=service?.activity||"";
+  $("serviceOtherActivity").value=service?.otherActivity||"";
+  $("servicePayAmount").value=service?.amount||"";
+  $("servicePayMode").value=service?.payMode||"Cash";
+  $("serviceReceipt").value=service?.receiptNo||"";
+  $("serviceCover").value=service?.coverage||preset?.coverage||"month";
+  fillAYSelect(service?.academicYear||preset?.academicYear||ayOf(currentMonth()));
+  fillPaymentMonths(service?.monthsCovered||[]);
+  $("serviceNotes").value=service?.notes||"";
+  $("serviceBy").value=service?.doneBy||"parent";
+  $("serviceByName").value=service?.doneByName||"";
+  $("serviceByRel").value=service?.doneByRelation||"";
+  $("serviceReason").value="";
+  $("serviceReasonWrap").classList.toggle("hidden",!service);
+  renderServiceLog(service);
+  toggleServiceType();
+  renderServiceHistory();
+  openModal("serviceModal");
+}
+window.openServiceModalById=id=>openServiceModal(services.find(s=>s.id===id));
+
+$("serviceForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const id=$("serviceId").value||null;
+  const student=students.find(s=>s.id===$("serviceStudent").value);
+  if(!student) return alert("Please select a class and a student.");
+  const type=$("serviceType").value;
+  const date=$("serviceDate").value;
+  if(!date) return alert("Enter a valid date.");
+  const month=$("serviceForMonth").value||date.slice(0,7);
+  const data={
+    studentId:student.id, studentName:student.name, parentName:student.parentName,
+    date, month, type, hours:0, activity:"", otherActivity:"", startTime:"", endTime:"", amount:0, payMode:"", receiptNo:"", coverage:"", academicYear:0, monthsCovered:[], doneBy:"parent", doneByName:"", doneByRelation:"",
+    notes:$("serviceNotes").value.trim()
+  };
+  if(type==="service"){
+    const hours=Number($("serviceHours").value);
+    const st=$("serviceStart").value, en=$("serviceEnd").value;
+    if(!hours || hours<=0) return alert("Enter valid hours.");
+    if(st && en && en<=st) return alert("End time must be after start time.");
+    data.hours=hours; data.activity=$("serviceActivity").value; data.otherActivity=data.activity==="Other"?$("serviceOtherActivity").value.trim():""; data.startTime=st; data.endTime=en;
+    if(data.activity==="Other"&&!data.otherActivity) return alert("Describe the Other activity.");
+  } else if(type==="payment"){
+    const amt=Number($("servicePayAmount").value);
+    if(!amt || amt<=0) return alert("Enter the amount paid.");
+    data.amount=amt; data.payMode=$("servicePayMode").value; data.receiptNo=$("serviceReceipt").value.trim();
+    data.coverage=$("serviceCover").value; data.academicYear=(data.coverage==="year"||data.coverage==="months")?Number($("serviceAY").value):0;
+    if(data.coverage==="months"){
+      data.monthsCovered=[...$("serviceMonths").querySelectorAll("input:checked")].map(i=>i.value);
+      if(!data.monthsCovered.length) return alert("Select at least one month for this payment.");
+      data.month=data.monthsCovered[0];
+    }
+  } else if(!data.notes){
+    return alert(type==="teacher"?"Enter teacher details in Notes.":"Enter the reason for this exception in Notes.");
+  }
+
+  if(type!=="exception"){
+    data.doneBy=$("serviceBy").value;
+    if(data.doneBy==="other"){
+      data.doneByName=$("serviceByName").value.trim(); data.doneByRelation=$("serviceByRel").value.trim();
+      if(!data.doneByName) return alert("Enter the name of the person who did the service.");
+    }
+  }
+  // Change log: every create / adjustment is recorded on the record itself.
+  const old=id?services.find(x=>x.id===id):null;
+  const by=(getLoggedInUser()||{}).username||"unknown";
+  const at=new Date().toISOString();
+  let entry=null;
+  if(old){
+    const changes=[];
+    const cmp=(f,a,b)=>{if(String(a??"")!==String(b??"")) changes.push({f,from:a??"",to:b??""})};
+    if(old.studentId!==data.studentId) changes.push({f:"student",from:old.studentName||"",to:data.studentName});
+    cmp("type",old.type||"service",data.type); cmp("date",old.date,data.date); cmp("counts for month",old.month||"",data.month);
+    cmp("start",old.startTime,data.startTime); cmp("end",old.endTime,data.endTime);
+    cmp("hours",old.hours??0,data.hours); cmp("activity",old.activity,data.activity);
+    cmp("amount (₹)",old.amount??0,data.amount); cmp("pay mode",old.payMode,data.payMode);
+    cmp("receipt",old.receiptNo,data.receiptNo); cmp("notes",old.notes,data.notes);
+    cmp("activity",old.activity, data.activity); cmp("other activity",old.otherActivity,data.otherActivity);
+    cmp("covers",old.coverage||(old.type==="payment"?"month":""),data.coverage); cmp("academic year",old.academicYear??0,data.academicYear);
+    cmp("months covered",(old.monthsCovered||[]).join(","),(data.monthsCovered||[]).join(","));
+    cmp("done by",old.doneBy==="other"?(old.doneByName||"other person"):"registered parent",data.doneBy==="other"?data.doneByName:"registered parent");
+    const reason=$("serviceReason").value.trim();
+    const major=changes.some(c=>["student","type","date","counts for month","hours","amount (₹)","covers","academic year"].includes(c.f));
+    if(major && !reason) return alert("Please enter a reason for this adjustment. It will be saved in the change log.");
+    if(changes.length) entry={at,by,action:"edited",reason,changes};
+  } else {
+    entry={at,by,action:"created",summary:type==="service"?data.hours+" h":type==="payment"?"₹"+data.amount:"exception"};
+  }
+  data.log=[...((old&&old.log)||[]),...(entry?[entry]:[])];
+
+  if(type==="payment" && data.coverage==="year"){
+    const dupY=services.find(x=>x.id!==id&&x.studentId===student.id&&x.type==="payment"&&x.coverage==="year"&&Number(x.academicYear)===data.academicYear);
+    if(dupY && !confirm("This student already has a full-year payment for "+ayLabel(data.academicYear)+". Save another?")) return;
+  }
+  if(type==="payment" && data.coverage==="months"){
+    const overlap=data.monthsCovered.filter(m=>services.some(x=>x.id!==id&&x.studentId===student.id&&x.type==="payment"&&x.month===m&&x.coverage!=="year"));
+    if(overlap.length && !confirm("Payment records already exist for: "+overlap.map(monthLabel).join(", ")+". Continue and add another payment record?")) return;
+  }
+  // Warning, not a hard block: a parent may legitimately perform extra service.
+  if(type==="service"){
+    const existing=services.filter(x=>x.studentId===student.id && x.month===month && x.id!==id && (x.type||"service")==="service");
+    if(existing.length){
+      $("serviceDuplicateWarning").textContent=`This student already has ${existing.reduce((a,x)=>a+Number(x.hours||0),0)} hour(s) recorded in ${monthLabel(month)}. Saving this will create an additional service record.`;
+      $("serviceDuplicateWarning").classList.remove("hidden");
+      if(!confirm("This student already has a service record this month. Continue?")) return;
+    }
+  }
+  try{
+    if(!id && type==="payment" && data.coverage==="months" && data.monthsCovered.length>1){
+      const total=Number(data.amount||0), each=Math.round((total/data.monthsCovered.length)*100)/100, batchId="pm_"+Date.now();
+      for(const m of data.monthsCovered){
+        await saveService({...data,month:m,monthsCovered:[m],amount:each,batchPaymentId:batchId,batchTotalAmount:total,batchMonthCount:data.monthsCovered.length});
+      }
+    }else{
+      await saveService(data,id);
+    }
+    await loadData();
+    closeModal("serviceModal");
+    showToast(id?"Record adjusted and logged.":"Record saved.");
+  }catch(e){alert("Could not save service: "+e.message)}
+});
+
+async function deleteService(id) {
+  if(!isAdmin()) return alert("Only an admin can delete records.");
+  if(!confirm("Delete this service record?")) return;
+  try{
+    await db.collection("service_records").doc(id).delete();
+    await loadData(); showToast("Service deleted.");
+  }catch(e){alert("Could not delete service: "+e.message)}
+}
+window.deleteService=deleteService;
+
+function getStudent(id){return students.find(s=>s.id===id)}
+function fmtTime(t){if(!t)return"";const [h,m]=t.split(":").map(Number);return (h%12||12)+":"+String(m).padStart(2,"0")+" "+(h<12?"AM":"PM")}
+function renderServices() {
+  const q=$("serviceSearch").value.toLowerCase().trim();
+  const m=$("serviceMonthFilter").value;
+  const rows=services.filter(x=>{
+    const text=[x.studentName,x.parentName,x.activity,x.notes,x.receiptNo,typeLabel(x),x.doneByName].join(" ").toLowerCase();
+    return (!m||x.month===m) && text.includes(q);
+  });
+  $("servicesTable").innerHTML=rows.length ? rows.map(x=>{
+    const t=x.type||"service";
+    const amountCell=t==="service"?`<span class="badge badge-green">${escapeHtml(x.hours)} h</span>`:t==="payment"?`<span class="badge badge-blue">₹${escapeHtml(x.amount||0)}</span>`:"—";
+    const act=t==="payment"?[x.payMode,x.receiptNo?"#"+x.receiptNo:""].filter(Boolean).join(" "):(x.activity||"");
+    return `<tr>
+      <td>${escapeHtml(x.date)}${x.month&&x.date&&x.month!==x.date.slice(0,7)?`<div class="small muted">Counts for ${escapeHtml(monthLabel(x.month))}</div>`:""}</td>
+      <td><strong>${escapeHtml(x.studentName||getStudent(x.studentId)?.name||"Unknown")}</strong></td>
+      <td>${escapeHtml(x.parentName||getStudent(x.studentId)?.parentName||"")}${x.doneBy==="other"?`<div class="small muted">Done by: ${escapeHtml(x.doneByName||"")}${x.doneByRelation?" ("+escapeHtml(x.doneByRelation)+")":""}</div>`:""}</td>
+      <td><span class="badge ${recBadgeClass(x)}">${escapeHtml(typeLabel(x))}</span>${(x.log||[]).some(l=>l.action==="edited")?'<div class="small muted">✎ adjusted</div>':""}</td>
+      <td>${x.startTime&&x.endTime?escapeHtml(fmtTime(x.startTime)+" – "+fmtTime(x.endTime)):"—"}</td>
+      <td>${amountCell}</td>
+      <td>${escapeHtml(act)}</td>
+      <td>${escapeHtml(x.notes||"—")}</td>
+      <td>
+        <button class="btn btn-secondary btn-small" onclick="openServiceModalById('${x.id}')">Edit</button>
+        ${isAdmin()?`<button class="btn btn-danger btn-small" onclick="deleteService('${x.id}')">Delete</button>`:""}
+      </td>
+    </tr>`;}).join("") : `<tr><td colspan="9" class="empty">No service records found.</td></tr>`;
+}
+$("serviceSearch").addEventListener("input",renderServices);
+$("serviceMonthFilter").addEventListener("change",renderServices);
+
+/* ============================================================
+   9. DASHBOARD / REPORTS
+   ============================================================ */
+function monthServices(month){return services.filter(s=>s.month===month)}
+function typeLabel(x){return x.type==="payment"&&x.coverage==="year"?"Full-year payment":x.type==="payment"&&x.coverage==="months"?"Selected-month payment":({payment:"Payment in lieu",exception:"Parent cannot do service",teacher:"Parent is a teacher"})[x.type]||"Service"}
+function recBadgeClass(x){return x.type==="payment"?"badge-blue":(["exception","teacher"].includes(x.type))?"badge-orange":"badge-green"}
+function recBadgeText(x){return x.type==="payment"?"₹"+Number(x.amount||0):(["exception","teacher"].includes(x.type))?"Exception":x.hours+"h"}
+function pendingLabel(x){return x.mode==="pay"?`Pay ₹${x.student.payAmount||0} or ${x.hours} / 2h`:`${x.hours} / 2h`}
+function statusFor(s,month,recs){
+  const mine=recs.filter(r=>r.studentId===s.id);
+  const svc=mine.filter(r=>(r.type||"service")==="service");
+  const yp=yearPaid(s.id,ayOf(month));
+  const pays=mine.filter(r=>r.type==="payment" && (r.coverage!=="year" && (!(Array.isArray(r.monthsCovered)) || r.monthsCovered.includes(month))));
+  const exc=mine.filter(r=>r.type==="exception" || r.type==="teacher");
+  const hours=svc.reduce((a,r)=>a+Number(r.hours||0),0);
+  const paid=pays.reduce((a,r)=>a+Number(r.amount||0),0)+(yp&&yp.month===month?Number(yp.amount||0):0);
+  const mode=studentMode(s);
+  let state="pending",label="Pending",note="";
+  if(hours>=2){state="completed";label="Completed"}
+  else if(yp){state="paid";label="Paid – full year";note="Covered by full-year payment "+ayLabel(yp.academicYear)}
+  else if(pays.length){state="paid";label="Paid ₹"+paid;note=pays.map(p=>[p.payMode,p.receiptNo?"#"+p.receiptNo:""].filter(Boolean).join(" ")).join(", ")}
+  else if(exc.length){state="exempt";label=exc[0].type==="teacher"?"Parent is a teacher":"Parent cannot do service";note=exc[0].notes||""}
+  else if(mode==="teacher"){state="exempt";label="Teacher parent";note=s.modeNote||""}
+  else if(mode==="exception" && exceptionActive(s,month)){state="exempt";label="Exception";note=s.modeNote||""}
+  else if(mode==="pay"){note=`Pays ₹${s.payAmount||0} instead of service`}
+  return {student:s,hours,paid,records:svc,state,label,note,mode,completed:state!=="pending"};
+}
+function monthlyStatus(month){
+  const recs=monthServices(month);
+  return students.filter(s=>s.active!==false).map(s=>statusFor(s,month,recs));
+}
+
+let dbClass="", dbAYView="";
+let dashboardStudentFilter="";
+function dbClasses(){
+  const list=CLASS_LIST.slice(); students.forEach(x=>{if(x.className&&!list.includes(x.className)) list.push(x.className)});
+  return list.filter(c=>students.some(x=>x.active!==false&&x.className===c));
+}
+function pctBadge(p){return p>=90?"badge-green":p>=60?"badge-orange":"badge-red"}
+function pctColor(p){return p>=90?"var(--green)":p>=60?"var(--orange)":"var(--red)"}
+function dbTally(list,m){
+  const t={students:list.length,done:0,paid:0,exempt:0,pending:0,hours:0,amount:0,pend:[]};
+  list.forEach(s=>{
+    const x=statusFor(s,m,recsOf(s.id).filter(r=>r.month===m));
+    t.hours+=x.hours; t.amount+=x.paid;
+    if(x.state==="completed") t.done++; else if(x.state==="paid") t.paid++; else if(x.state==="exempt") t.exempt++; else {t.pending++; t.pend.push(x);}
+  });
+  t.fulfilled=t.done+t.paid+t.exempt;
+  t.pct=t.students?Math.round(t.fulfilled/t.students*100):0;
+  return t;
+}
+function renderDashboard(){
+  const cm=currentMonth(), ayEl=$("dbAY"), mEl=$("dbMonth");
+  const av=ayEl.value; ayEl.innerHTML=ayList().map(a=>`<option value="${a}">Academic year ${ayLabel(a)}</option>`).join("");
+  ayEl.value=av||String(ayOf(cm)); if(!ayEl.value) ayEl.value=String(ayOf(cm));
+  const ay=Number(ayEl.value), months=ayMonths(ay), elapsed=months.filter(x=>x<=cm);
+  const mv=mEl.value; mEl.innerHTML=(elapsed.length?elapsed:[months[0]]).map(x=>`<option value="${x}">${escapeHtml(monthLabel(x))}</option>`).join("");
+  mEl.value=mv&&(elapsed.includes(mv)||mv===months[0])?mv:(elapsed.includes(cm)?cm:(elapsed[elapsed.length-1]||months[0]));
+  const m=mEl.value||cm;
+  $("dashboardMonth").textContent=`${monthLabel(m)} · Academic year ${ayLabel(ay)}`;
+
+  const active=students.filter(s=>s.active!==false), classes=dbClasses();
+  const byClass={}; active.forEach(s=>{(byClass[s.className]=byClass[s.className]||[]).push(s)});
+  const all=dbTally(active,m);
+  const rows=classes.map(c=>({c,t:dbTally(byClass[c],m)}));
+
+  // big counts (selected month)
+  $("dbStudents").textContent=all.students;
+  $("dbStuNote").textContent="Active students"+(classes.length?` in ${classes.length} classes`:"");
+  $("dbFulfilled").textContent=all.fulfilled;
+  $("dbFulNote").textContent=`of ${all.students} students`;
+  $("dbFulService").textContent=all.done;
+  $("dbFulPay").textContent=all.paid;
+  $("dbFulExc").textContent=all.exempt;
+  $("dbPendingCnt").textContent=all.pending;
+  $("dbPendNote").textContent=`students pending as of ${monthLabel(m)}`;
+  // academic-year counts: full-year payers and staff (teacher-parent) students
+  const payers=active.map(s=>({s,r:yearPaid(s.id,ay)})).filter(o=>o.r).sort((a,b)=>cmpStudents(a.s,b.s));
+  const staff=active.filter(s=>studentMode(s)==="teacher").sort(cmpStudents);
+  const payTotal=payers.reduce((a,o)=>a+Number(o.r.amount||0),0);
+  $("dbAYTitle").textContent="Academic year "+ayLabel(ay);
+  $("dbFullCount").textContent=payers.length;
+  $("dbFullNote").textContent=payers.length?`₹${payTotal} collected`:"";
+  $("dbStaffCount").textContent=staff.length;
+  renderAYDetail(ay,payers,staff);
+
+  $("dbOverallTitle").textContent="School overview — "+monthLabel(m);
+  $("completionPercent").textContent=all.pct+"%";
+  $("completionBar").style.width=all.pct+"%";
+  $("dbOverallNote").textContent=active.length?`${all.fulfilled} of ${all.students} families have met the 2-hour requirement this month.`:"No active students yet.";
+  const weak=rows.filter(o=>o.t.students&&o.t.pct<60).sort((a,b)=>a.t.pct-b.t.pct);
+  $("dbAttention").innerHTML=weak.length?`<span class="small" style="font-weight:700;color:var(--red)">Needs attention:</span> `+weak.map(o=>`<a href="javascript:void(0)" class="badge badge-red" style="text-decoration:none;margin:2px 4px 2px 0" onclick="dbPickClass('${escapeHtml(o.c)}')">${escapeHtml(o.c)} · ${o.t.pct}%</a>`).join(""):(active.length?`<span class="small" style="color:var(--green);font-weight:700">All classes are above 60% this month.</span>`:"");
+
+  // class-wise table (selected month)
+  $("dbClassTitle").textContent="Class-wise report — "+monthLabel(m);
+  $("dbClassBody").innerHTML=rows.length?rows.map(o=>`<tr style="cursor:pointer${dbClass===o.c?";background:var(--primary-light)":""}" onclick="dbPickClass('${escapeHtml(o.c)}')">
+      <td><strong>${escapeHtml(o.c)}</strong></td><td>${o.t.students}</td>
+      <td>${o.t.done}</td><td>${o.t.paid}</td><td>${o.t.exempt}</td>
+      <td>${o.t.pending?`<span class="badge badge-red">${o.t.pending}</span>`:"0"}</td>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="progress" style="flex:1;margin-top:0"><span style="width:${o.t.pct}%;background:${pctColor(o.t.pct)}"></span></div><strong style="min-width:38px;text-align:right">${o.t.pct}%</strong></div></td>
+    </tr>`).join(""):`<tr><td colspan="7" class="empty">No active students yet.</td></tr>`;
+
+  // month-wise heat map (class x month)
+  const mlabel=x=>{const [y,mo]=x.split("-").map(Number);return new Date(y,mo-1,1).toLocaleString(undefined,{month:"short"})};
+  $("dbAYLabel").textContent="Academic year "+ayLabel(ay)+" (Jun "+ay+" – May "+(ay+1)+")";
+  $("dbHeatHead").innerHTML=`<tr><th>Class</th>${months.map(x=>`<th class="center">${escapeHtml(mlabel(x))}</th>`).join("")}</tr>`;
+  const heat=classes.map(c=>({c,cells:months.map(x=>x>cm?null:dbTally(byClass[c],x))}));
+  $("dbHeatBody").innerHTML=heat.length?heat.map(h=>`<tr><td><strong>${escapeHtml(h.c)}</strong></td>${h.cells.map((t,i)=>t?`<td class="center"><span class="badge ${pctBadge(t.pct)}" style="cursor:pointer" title="${t.pending} pending" onclick="dbPickCell('${escapeHtml(h.c)}','${months[i]}')">${t.pct}%</span></td>`:`<td class="center muted">—</td>`).join("")}</tr>`).join("")
+    +(()=>{const tot=months.map(x=>x>cm?null:dbTally(active,x));return `<tr style="background:#fafbfe"><td><strong>Whole school</strong></td>${tot.map(t=>t?`<td class="center"><strong>${t.pct}%</strong></td>`:`<td class="center muted">—</td>`).join("")}</tr>`})()
+    :`<tr><td colspan="13" class="empty">No active students yet.</td></tr>`;
+
+  renderDbDetail(m,byClass);
+}
+function renderAYDetail(ay,payers,staff){
+  const box=$("dbAYDetail");
+  if(!dbAYView){box.classList.add("hidden");return;}
+  const nm=o=>`<strong style="cursor:pointer;color:var(--primary)" onclick="openStudentDetail('${o.id}')">${escapeHtml(o.name)}</strong>${o.code?` <span class="small muted">Roll ${escapeHtml(o.code)}</span>`:""}`;
+  if(dbAYView==="full"){
+    $("dbAYDetailTitle").textContent=`Full-year payments — ${ayLabel(ay)} (${payers.length})`;
+    $("dbAYHead").innerHTML=`<tr><th>Student</th><th>Class</th><th>Parent</th><th>Phone</th><th>Amount</th><th>Date</th><th>Mode / Receipt</th></tr>`;
+    $("dbAYBody").innerHTML=payers.length?payers.map(({s,r})=>`<tr>
+      <td>${nm(s)}</td><td>${escapeHtml(s.className)}</td><td>${escapeHtml(s.parentName)}</td><td>${escapeHtml(s.phone||"—")}</td>
+      <td><strong>₹${escapeHtml(r.amount||0)}</strong></td><td>${escapeHtml(r.date||"—")}</td>
+      <td>${escapeHtml([r.payMode,r.receiptNo?"#"+r.receiptNo:""].filter(Boolean).join(" · ")||"—")}</td></tr>`).join("")
+      :`<tr><td colspan="7" class="empty">No full-year payments recorded for ${escapeHtml(ayLabel(ay))}.</td></tr>`;
+  } else {
+    $("dbAYDetailTitle").textContent=`Staff students (parent is a teacher) — ${ayLabel(ay)} (${staff.length})`;
+    $("dbAYHead").innerHTML=`<tr><th>Student</th><th>Class</th><th>Parent</th><th>Phone</th><th colspan="3">Teacher details</th></tr>`;
+    $("dbAYBody").innerHTML=staff.length?staff.map(s=>`<tr>
+      <td>${nm(s)}</td><td>${escapeHtml(s.className)}</td><td>${escapeHtml(s.parentName)}</td><td>${escapeHtml(s.phone||"—")}</td>
+      <td colspan="3">${escapeHtml(s.modeNote||"—")}</td></tr>`).join("")
+      :`<tr><td colspan="7" class="empty">No staff students.</td></tr>`;
+  }
+  box.classList.remove("hidden");
+}
+function renderDbDetail(m,byClass){
+  const box=$("dbClassDetail");
+  if(!dbClass||!byClass[dbClass]){box.classList.add("hidden");return;}
+  const t=dbTally(byClass[dbClass],m);
+  $("dbDetailTitle").textContent=`${dbClass} — pending in ${monthLabel(m)} (${t.pending} of ${t.students})`;
+  const sorted=t.pend.slice().sort((a,b)=>cmpStudents(a.student,b.student));
+  $("dbDetailBody").innerHTML=sorted.length?sorted.map(x=>`
+    <div class="quick-row">
+      <div><strong style="cursor:pointer;color:var(--primary)" onclick="openStudentDetail('${x.student.id}')">${escapeHtml(x.student.name)}</strong>${x.student.code?` <span class="small muted">Roll ${escapeHtml(x.student.code)}</span>`:""}
+        <div class="small muted">${escapeHtml(x.student.parentName)}${x.student.phone?" · "+escapeHtml(x.student.phone):""}</div>${prevBadge(x.student)}</div>
+      <span class="badge ${x.hours>0?"badge-orange":"badge-red"}">${escapeHtml(pendingLabel(x))}</span>
+    </div>`).join(""):`<div class="empty">Everyone in ${escapeHtml(dbClass)} has completed ${escapeHtml(monthLabel(m))}. 🎉</div>`;
+  box.classList.remove("hidden");
+}
+window.dbPickClass=c=>{dbClass=(dbClass===c?"":c);renderDashboard();if(dbClass)$("dbClassDetail").scrollIntoView({behavior:"smooth",block:"nearest"});};
+window.dbPickCell=(c,m)=>{dbClass=c;$("dbMonth").value=m;renderDashboard();$("dbClassDetail").scrollIntoView({behavior:"smooth",block:"nearest"});};
+$("dbMonth").addEventListener("change",renderDashboard);
+$("dbAY").addEventListener("change",()=>{$("dbMonth").value="";renderDashboard();});
+$("dbCloseDetail").addEventListener("click",()=>{dbClass="";renderDashboard();});
+$("dbFullBtn").addEventListener("click",()=>{dbAYView=dbAYView==="full"?"":"full";renderDashboard();});
+$("dbStaffBtn").addEventListener("click",()=>{dbAYView=dbAYView==="staff"?"":"staff";renderDashboard();});
+$("dbAYClose").addEventListener("click",()=>{dbAYView="";renderDashboard();});
+$("dbOpenReport").addEventListener("click",()=>{
+  const c=dbClass, ay=$("dbAY").value; fillCR(); $("crClass").value=c; $("crAY").value=ay; navigate("classreports");
+});
+
+function renderReport(){
+  const cm=currentMonth();
+  let m=$("reportMonth").value||cm;
+  if(m>cm) m=cm;
+  $("reportMonth").value=m;
+  const st=monthlyStatus(m), completed=st.filter(x=>x.completed).length, pending=st.filter(x=>!x.completed).length;
+  $("reportStudents").textContent=st.length;
+  $("reportCompleted").textContent=completed;
+  $("reportPending").textContent=pending;
+  $("reportHours").textContent=st.reduce((a,x)=>a+x.hours,0);
+  const paidTotal=st.reduce((a,x)=>a+x.paid,0);
+  $("reportHoursNote").textContent=paidTotal>0?`₹${paidTotal} collected`:"";
+  $("reportTable").innerHTML=st.length?st.map(x=>{
+    const dates=x.records.map(r=>r.date).sort().join(", ");
+    const badge=x.state==="completed"?"badge-green":x.state==="paid"?"badge-blue":x.state==="exempt"?"badge-orange":"badge-red";
+    return `<tr>
+      <td><strong>${escapeHtml(x.student.name)}</strong></td>
+      <td>${escapeHtml(x.student.className)} ${escapeHtml(x.student.section||"")}</td>
+      <td>${escapeHtml(x.student.parentName)}</td>
+      <td>${escapeHtml(x.student.phone||"—")}</td>
+      <td>${x.hours}</td>
+      <td><span class="badge ${badge}">${escapeHtml(x.label)}</span></td>
+      <td>${escapeHtml(dates||x.note||"—")}</td>
+    </tr>`;
+  }).join(""):`<tr><td colspan="7" class="empty">No active students.</td></tr>`;
+}
+$("reportMonth").value=currentMonth();
+$("reportMonth").addEventListener("change",renderReport);
+
+/* ============================================================
+   10. RENDER ALL
+   ============================================================ */
+function renderAll(){
+  if(typeof refreshStudentDetail==="function") refreshStudentDetail();
+  if(typeof renderClassReport==="function" && !$("page-classreports").classList.contains("hidden")) renderClassReport();
+  renderStudents();
+  renderServices();
+  renderDashboard();
+  renderReport();
+}
+
+/* ============================================================
+   11. EXPORT HELPERS
+   ============================================================ */
+function downloadText(filename,text,mime){
+  const blob=new Blob([text],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function csvCell(v){
+  const s=String(v??"");
+  return `"${s.replace(/"/g,'""')}"`;
+}
+function downloadCSV(filename,headers,rows){
+  const csv=[headers, ...rows].map(row=>row.map(csvCell).join(",")).join("\\r\\n");
+  downloadText(filename,"\\uFEFF"+csv,"text/csv;charset=utf-8");
+}
+
+$("exportStudentsBtn").addEventListener("click",()=>{
+  const rows=students.map(s=>[s.name,s.code,s.className,s.section,s.parentName,s.phone,s.active!==false?"Active":"Inactive",s.notes,MODE_LABEL[studentMode(s)],s.payAmount||"",s.exceptionUntil||"",s.modeNote||"",s.otherDescription||""]);
+  downloadCSV("students.csv",["Student Name","Roll No","Class","Section","Parent Name","Phone","Status","Notes","Service Arrangement","Pay Amount","Exception Until","Arrangement Details","Other Arrangement Description"],rows);
+});
+$("exportServicesBtn").addEventListener("click",()=>{
+  const m=$("serviceMonthFilter").value;
+  const rows=services.filter(x=>!m||x.month===m).map(x=>[x.date,x.month,x.studentName,x.parentName,x.hours,x.activity,x.notes,typeLabel(x),x.startTime||"",x.endTime||"",x.amount||"",x.payMode||"",x.receiptNo||"",x.doneBy==="other"?x.doneByName:""]);
+  downloadCSV("service-records.csv",["Date","Month","Student","Parent","Hours","Activity","Notes","Type","Start Time","End Time","Amount","Payment Mode","Receipt No","Done By (other person)"],rows);
+});
+$("exportReportBtn").addEventListener("click",()=>{
+  const m=$("reportMonth").value||currentMonth(), st=monthlyStatus(m);
+  const rows=st.map(x=>[x.student.name,x.student.className,x.student.section,x.student.parentName,x.student.phone,x.hours,x.label,x.records.map(r=>r.date).join("; "),x.paid||"",x.note||""]);
+  downloadCSV(`monthly-report-${m}.csv`,["Student","Class","Section","Parent","Phone","Hours","Status","Service Dates","Amount Paid","Details"],rows);
+});
+$("exportJsonBtn").addEventListener("click",()=>{
+  const backup={
+    format:"sss-vv-parent-service-backup",
+    version:1,
+    exportedAt:new Date().toISOString(),
+    students,
+    service_records:services
+  };
+  downloadText(`school-service-backup-${todayISO()}.json`,JSON.stringify(backup,null,2),"application/json");
+  showToast("Backup downloaded.");
+});
+
+/* ============================================================
+   12. IMPORT JSON
+   ============================================================ */
+$("importJsonInput").addEventListener("change",async e=>{
+  if(isReadOnly()){e.target.value="";return;}
+  const file=e.target.files[0]; if(!file)return;
+  try{
+    const data=JSON.parse(await file.text());
+    if(!Array.isArray(data.students) || !Array.isArray(data.service_records)) {
+      throw new Error("This does not look like a valid school service backup.");
+    }
+    if(!confirm(`Import ${data.students.length} students and ${data.service_records.length} service records?\\n\\nExisting records with the same IDs will be overwritten. Nothing else will be deleted.`)) {
+      e.target.value=""; return;
+    }
+    setLoading(true,"Importing backup…");
+    const batchLimit=400;
+    const all=[
+      ...data.students.map(x=>({col:"students",x})),
+      ...data.service_records.map(x=>({col:"service_records",x}))
+    ];
+    for(let i=0;i<all.length;i+=batchLimit){
+      const batch=db.batch();
+      all.slice(i,i+batchLimit).forEach(item=>{
+        const raw={...item.x}; delete raw.id;
+        const ref=item.x.id ? db.collection(item.col).doc(item.x.id) : db.collection(item.col).doc();
+        batch.set(ref,raw,{merge:true});
+      });
+      await batch.commit();
+    }
+    await loadData();
+    setLoading(false);
+    e.target.value="";
+    showToast("Backup imported successfully.");
+  }catch(err){
+    setLoading(false); e.target.value="";
+    alert("Import failed:\\n\\n"+err.message);
+  }
+});
+
+/* ============================================================
+   12b. STUDENT IMPORT (Excel / CSV)
+   ============================================================ */
+const IMPORT_COLS={
+  name:["studentname","name","student"],
+  code:["rollno","rollnumber","roll","studentid","admissionno","admissionnumber","admno","id","code"],
+  cls:["class","std","standard","grade"],
+  section:["section","sec"],
+  parent:["parentname","parent","fathername","guardian","guardianname"],
+  phone:["phone","mobile","phonenumber","contact","mobilenumber"],
+  mode:["fulfilment","fulfillment","servicemode","arrangement","servicearrangement"],
+  pay:["payamount","amount","monthlyamount"],
+  details:["details","reason","arrangementdetails"],
+  notes:["addressnotes","notes","note","address"],
+  status:["status"]
+};
+const normHdr=h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,"");
+function pickCol(row,key){for(const k in row){if(IMPORT_COLS[key].includes(normHdr(k))) return String(row[k]??"").trim();}return "";}
+function normClass(v){
+  const t=String(v??"").trim().toLowerCase().replace(/\b(class|std|standard|grade)\b/g,"").replace(/[.\s-]/g,"");
+  if(["nursery","nur","pp1","prekg"].includes(t)) return "Nursery";
+  if(["lkg","lowerkg"].includes(t)) return "LKG";
+  if(["ukg","upperkg"].includes(t)) return "UKG";
+  const roman={i:1,ii:2,iii:3,iv:4,v:5,vi:6,vii:7,viii:8,ix:9,x:10};
+  const n=roman[t]||parseInt(t,10);
+  return n>=1&&n<=10?CLASS_LIST[2+n]:"";
+}
+function normMode(v){
+  const t=String(v||"").toLowerCase();
+  if(/pay|fee|money/.test(t)) return "pay";
+  if(/teach/.test(t)) return "teacher";
+  if(/exc|cannot|unable/.test(t)) return "exception";
+  return "service";
+}
+$("studentTemplateBtn").addEventListener("click",()=>{
+  if(typeof XLSX==="undefined") return alert("Excel library could not be loaded. Check your internet connection.");
+  const aoa=[
+    ["Student Name","Roll No","Class","Parent Name","Phone","Fulfilment","Pay Amount","Details","Address / Notes","Status"],
+    ["Ravi Kumar","1","5th","Suresh Kumar","9876543210","Service","","","","Active"],
+    ["Anitha Reddy","2","LKG","Lakshmi Reddy","9876500000","Pay","500","Cannot attend on weekdays","","Active"],
+    ["Kiran Rao","3","10th","Mrs. Rao","9876511111","Teacher","","Teaches Maths","","Active"]
+  ];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),"Students");
+  XLSX.writeFile(wb,"students-import-template.xlsx");
+});
+$("importStudentsInput").addEventListener("change",async e=>{
+  if(isReadOnly()){e.target.value="";return;}
+  const file=e.target.files[0]; if(!file) return;
+  try{
+    if(typeof XLSX==="undefined") throw new Error("Excel reader could not be loaded. Check your internet connection and try again.");
+    const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:"",raw:false});
+    // Import duplicate validation is ONLY Student Name + Parent Name.
+    // A parent can have multiple children and different children can share a name.
+    // Missing parent names are treated as "Update Soon" for validation/storage.
+    const nk=x=>"n:"+[x.name,x.parentName||"Update Soon"].map(v=>String(v||"").toLowerCase().replace(/\s+/g," ").trim()).join("|");
+    const seen=new Set(); students.forEach(x=>seen.add(nk(x)));
+    const good=[],bad=[]; let dups=0;
+    rows.forEach((r,i)=>{
+      const name=pickCol(r,"name"),cls=pickCol(r,"cls"),parent=pickCol(r,"parent");
+      if(!name&&!cls&&!parent) return; // blank row
+      const className=normClass(cls), mode=normMode(pickCol(r,"mode")), pay=Number(pickCol(r,"pay").replace(/[^0-9.]/g,""))||0;
+      const row="Row "+(i+2)+": ";
+      if(!name) return bad.push(row+"student name missing");
+      const parentName=parent||"Update Soon";
+      if(!className) return bad.push(row+"class '"+cls+"' not recognised (use Nursery, LKG, UKG, 1 to 10)");
+      if(mode==="pay"&&!(pay>0)) return bad.push(row+"'Pay' needs a Pay Amount");
+      const st={name,code:pickCol(r,"code"),className,parentName,phone:pickCol(r,"phone"),
+        notes:pickCol(r,"notes"),active:!/inactive/i.test(pickCol(r,"status")),
+        serviceMode:mode,payAmount:mode==="pay"?pay:0,exceptionUntil:"",modeNote:mode==="service"||mode==="other"?"":pickCol(r,"details"),otherDescription:mode==="other"?pickCol(r,"details"):""};
+      if(seen.has(nk(st))){dups++;return;}
+      seen.add(nk(st));
+      good.push(st);
+    });
+    if(!good.length){alert("No new students to import.\n\n"+dups+" duplicate(s) skipped."+(bad.length?"\n\n"+bad.slice(0,8).join("\n"):"")); e.target.value=""; return;}
+    let msg=`Import ${good.length} new student(s)?\n\n${dups} duplicate(s) skipped, ${bad.length} invalid row(s) skipped.`;
+    if(bad.length) msg+="\n\n"+bad.slice(0,8).join("\n")+(bad.length>8?"\n…":"");
+    if(!confirm(msg)){e.target.value="";return;}
+    setLoading(true,"Importing students…");
+    const ts=firebase.firestore.FieldValue.serverTimestamp();
+    for(let k=0;k<good.length;k+=400){
+      const batch=db.batch();
+      good.slice(k,k+400).forEach(st=>batch.set(db.collection("students").doc(),{...st,createdAt:ts,updatedAt:ts}));
+      await batch.commit();
+    }
+    await loadData(); setLoading(false); e.target.value="";
+    showToast(good.length+" students imported.");
+  }catch(err){setLoading(false); e.target.value=""; alert("Import failed:\n\n"+err.message);}
+});
+
+/* ============================================================
+   12c. STUDENT DETAIL (month-wise history, status, add fulfilment)
+   ============================================================ */
+let detailStudentId=null;
+const stateBadge=st=>st==="completed"?"badge-green":st==="paid"?"badge-blue":st==="exempt"?"badge-orange":"badge-red";
+function monthCell(x){return x?`<span class="badge ${stateBadge(x.state)}">${escapeHtml(x.label)}</span>`:"—"}
+function fillClassFilter(){
+  const el=$("studentClassFilter"), cur=el.value, list=CLASS_LIST.slice();
+  students.forEach(x=>{if(x.className&&!list.includes(x.className)) list.push(x.className)});
+  el.innerHTML='<option value="">Select class</option>'+list.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  el.value=cur;
+}
+function monthRange(from,to){
+  const out=[]; let [y,m]=from.split("-").map(Number); const [ty,tm]=to.split("-").map(Number);
+  while(y<ty||(y===ty&&m<=tm)){out.push(`${y}-${String(m).padStart(2,"0")}`); m++; if(m>12){m=1;y++}}
+  return out;
+}
+const AY_FIRST=2026; // academic year 2026 = Jun 2026 to May 2027
+function ayOf(m){const [y,mo]=m.split("-").map(Number);return mo>=6?y:y-1}
+function ayLabel(a){a=Number(a);return a?`${a}–${String(a+1).slice(2)}`:""}
+function ayMonths(a){const out=[];for(let i=0;i<12;i++){const mo=6+i;out.push(`${mo>12?a+1:a}-${String(mo>12?mo-12:mo).padStart(2,"0")}`)}return out}
+function ayList(){
+  const cur=ayOf(currentMonth()); let lo=Math.min(AY_FIRST,cur), hi=cur+1;
+  services.forEach(r=>{if(r.month){const a=ayOf(r.month); lo=Math.min(lo,a); hi=Math.max(hi,a);}});
+  const out=[]; for(let a=lo;a<=hi;a++) out.push(a); return out;
+}
+let _ypSrc=null,_ypMap={},_bsSrc=null,_bsMap={};
+function yearPaid(sid,ay){
+  if(_ypSrc!==services){_ypSrc=services;_ypMap={};services.forEach(r=>{if(r.type==="payment"&&r.coverage==="year"){const k=r.studentId+"|"+Number(r.academicYear); if(!_ypMap[k]) _ypMap[k]=r;}});}
+  return _ypMap[sid+"|"+ay];
+}
+function recsOf(sid){
+  if(_bsSrc!==services){_bsSrc=services;_bsMap={};services.forEach(r=>{(_bsMap[r.studentId]=_bsMap[r.studentId]||[]).push(r)});}
+  return _bsMap[sid]||[];
+}
+function prevPendingCount(st){
+  const cm=currentMonth(), recs=recsOf(st.id); let n=0;
+  ayMonths(ayOf(cm)).forEach(m=>{if(m<cm && statusFor(st,m,recs.filter(r=>r.month===m)).state==="pending") n++;});
+  return n;
+}
+function prevBadge(st){
+  const n=st.active!==false?prevPendingCount(st):0;
+  return n?`<div class="small" style="color:var(--red);margin-top:4px">+${n} earlier month${n>1?"s":""} pending</div>`:"";
+}
+function renderPrevPending(){
+  const cm=currentMonth();
+  $("prevPendingAY").textContent="Academic year "+ayLabel(ayOf(cm));
+  const rows=students.filter(s=>s.active!==false).map(s=>({s,n:prevPendingCount(s)})).filter(o=>o.n>0).sort((a,b)=>b.n-a.n);
+  $("dashboardPrev").innerHTML=rows.length?rows.slice(0,15).map(o=>`
+    <div class="quick-row">
+      <div><strong>${escapeHtml(o.s.name)}</strong><div class="small muted">${escapeHtml(o.s.className)} ${escapeHtml(o.s.section||"")} · ${escapeHtml(o.s.parentName)}</div></div>
+      <div><span class="badge badge-red">${o.n} month${o.n>1?"s":""}</span> <button class="btn btn-secondary btn-small" onclick="openStudentDetail('${o.s.id}')">View</button></div>
+    </div>`).join("")+(rows.length>15?`<div class="small muted center" style="padding-top:8px">+${rows.length-15} more — use the Students filter "Earlier months pending"</div>`:""):`<div class="empty">No pending months before ${escapeHtml(monthLabel(cm))}. 🎉</div>`;
+}
+
+let detailAY=null;
+function openStudentDetail(id){detailStudentId=id; detailAY=ayOf(currentMonth()); renderStudentDetail(); openModal("studentDetailModal");}
+function refreshStudentDetail(){if(detailStudentId && !$("studentDetailModal").classList.contains("hidden")) renderStudentDetail();}
+window.openStudentDetail=openStudentDetail;
+window.setDetailAY=v=>{detailAY=Number(v); renderStudentDetail();};
+window.addForMonth=(id,m)=>{
+  openServiceModal(null,{studentId:id,date:todayISO(),month:m});
+};
+window.payFullYear=(id,ay)=>openServiceModal(null,{studentId:id,date:todayISO(),month:currentMonth(),type:"payment",coverage:"year",academicYear:ay});
+function renderStudentDetail(){
+  const st=students.find(x=>x.id===detailStudentId);
+  if(!st){closeModal("studentDetailModal");return;}
+  const recs=recsOf(st.id), cm=currentMonth(), ay=detailAY||ayOf(cm);
+  const stats=ayMonths(ay).map(m=>({m,future:m>cm,x:statusFor(st,m,recs.filter(r=>r.month===m))}));
+  const pendingCount=stats.filter(o=>!o.future&&o.x.state==="pending").length;
+  const totalHours=stats.reduce((a,o)=>a+o.x.hours,0), totalPaid=stats.reduce((a,o)=>a+o.x.paid,0);
+  const yp=yearPaid(st.id,ay);
+  $("sdTitle").textContent=st.name;
+  $("sdBody").innerHTML=`
+    <div class="notice" style="margin-bottom:14px">
+      <strong>${escapeHtml(st.className)} ${escapeHtml(st.section||"")}</strong>${st.code?" · Roll no. "+escapeHtml(st.code):""}<br>
+      Parent: ${escapeHtml(st.parentName)}${st.phone?" · "+escapeHtml(st.phone):""}<br>
+      <span class="badge ${st.active!==false?"badge-green":"badge-red"}" style="margin:6px 6px 0 0">${st.active!==false?"Active":"Inactive"}</span>${modeCell(st)}
+      ${st.notes?`<div class="small muted" style="margin-top:6px">${escapeHtml(st.notes)}</div>`:""}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-small" onclick="openStudentModalById('${st.id}')">Edit student</button>
+        <button class="btn btn-primary btn-small" onclick="addForMonth('${st.id}','${cm}')">＋ Add for this month</button>
+      </div>
+    </div>
+    <div class="field"><label>Academic year</label>
+      <select onchange="setDetailAY(this.value)">${ayList().map(a=>`<option value="${a}"${a===ay?" selected":""}>${ayLabel(a)} (Jun ${a} – May ${a+1})</option>`).join("")}</select></div>
+    ${yp?`<div class="info">Paid for the full academic year ${escapeHtml(ayLabel(ay))}: ₹${escapeHtml(yp.amount||0)} on ${escapeHtml(yp.date)}${yp.payMode?" · "+escapeHtml(yp.payMode):""}${yp.receiptNo?" · #"+escapeHtml(yp.receiptNo):""}
+        <button class="btn btn-secondary btn-small" style="margin-left:8px" onclick="editFromHistory('${yp.id}')">Adjust</button></div>`
+      :`<div style="margin-bottom:14px"><button class="btn btn-success btn-small" onclick="payFullYear('${st.id}',${ay})">₹ Pay full academic year ${escapeHtml(ayLabel(ay))} at once</button></div>`}
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="card"><div class="stat-label">Pending months</div><div class="stat-value">${pendingCount}</div></div>
+      <div class="card"><div class="stat-label">Hours</div><div class="stat-value">${Math.round(totalHours*100)/100}</div></div>
+      <div class="card"><div class="stat-label">Paid</div><div class="stat-value">₹${totalPaid}</div></div>
+    </div>
+    ${stats.map(({m,x,future})=>{
+      const mr=recs.filter(r=>r.month===m).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+      const up=future&&x.state==="pending";
+      const left=x.state==="pending"&&!future&&x.mode!=="pay"?` · needs ${Math.max(0,Math.round((2-x.hours)*100)/100)} h more`:"";
+      const pend=x.state==="pending"&&!future;
+      return `<div class="card" style="margin-bottom:10px;padding:14px">
+        <div class="section-head" style="margin-bottom:8px">
+          <div><strong>${escapeHtml(monthLabel(m))}</strong> <span class="badge ${up?"badge-blue":stateBadge(x.state)}">${up?"Not due yet":escapeHtml(x.label)}</span>
+          <div class="small muted">${x.hours} h done${left}${x.note&&!mr.length?" · "+escapeHtml(x.note):""}</div></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${pend?`<button class="btn btn-wa btn-small" title="Send WhatsApp reminder" aria-label="Send WhatsApp reminder" onclick="sendWA('${st.id}','${m}')">💬</button>`:""}<button class="btn ${pend?"btn-warning":"btn-secondary"} btn-small" onclick="addForMonth('${st.id}','${m}')">＋ ${pend?"Add fulfilment":"Add record"}</button></div>
+        </div>
+        ${mr.length?mr.map(r=>`<div class="hist-row"><span><strong>${escapeHtml(r.date)}</strong> · ${escapeHtml(recDesc(r))}${(r.log||[]).some(l=>l.action==="edited")?" ✎":""}</span><button class="btn btn-secondary btn-small" onclick="editFromHistory('${r.id}')">Adjust</button></div>`).join(""):'<div class="small muted">No records this month.</div>'}
+      </div>`;}).join("")}`;
+}
+
+/* ============================================================
+   12d. CLASS & STUDENT REPORTS
+   ============================================================ */
+function fillCR(){
+  const a=$("crAY"), c=$("crClass"), av=a.value, cv=c.value;
+  a.innerHTML=ayList().map(y=>`<option value="${y}">Academic year ${ayLabel(y)} (Jun ${y} – May ${y+1})</option>`).join("");
+  a.value=av||String(ayOf(currentMonth()));
+  const list=CLASS_LIST.slice(); students.forEach(x=>{if(x.className&&!list.includes(x.className)) list.push(x.className)});
+  c.innerHTML='<option value="">All classes</option>'+list.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("");
+  c.value=cv;
+}
+function crCompute(){
+  const ay=Number($("crAY").value)||ayOf(currentMonth()), months=ayMonths(ay), cm=currentMonth();
+  const cls=$("crClass").value, q=$("crSearch").value.toLowerCase().trim(), show=$("crShow").value;
+  const rows=students.filter(s=>s.active!==false && (!cls||s.className===cls) &&
+      (!q||String(s.name||"").toLowerCase().includes(q)||String(s.code||"").toLowerCase().includes(q))).sort(cmpStudents)
+    .map(st=>{
+      const recs=recsOf(st.id);
+      const stats=months.map(m=>({m,future:m>cm,x:statusFor(st,m,recs.filter(r=>r.month===m))}));
+      const helpers=[...new Set(recs.filter(r=>months.includes(r.month)&&r.doneBy==="other"&&r.doneByName).map(r=>r.doneByName))];
+      return {st,stats,helpers,
+        hours:stats.reduce((a,o)=>a+o.x.hours,0),
+        paid:stats.reduce((a,o)=>a+o.x.paid,0),
+        pending:stats.filter(o=>!o.future&&o.x.state==="pending").length};
+    }).filter(o=>!show||(show==="pending"?o.pending>0:o.pending===0));
+  return {ay,months,rows};
+}
+function crCellText(o){
+  const {x,future}=o;
+  if(x.state==="pending") return future?"":"Pending";
+  if(x.state==="completed") return x.hours+"h"+(x.paid?" + ₹"+x.paid:"");
+  if(x.state==="paid") return x.label==="Paid – full year"?"Year paid"+(x.paid?" ₹"+x.paid:""):"₹"+x.paid;
+  return "Exempt";
+}
+function crCellHtml(o){
+  const {x,future}=o;
+  if(x.state==="pending") return future?'<span class="muted">—</span>':'<span class="badge badge-red">Pending</span>';
+  const cls=x.state==="completed"?"badge-green":x.state==="paid"?"badge-blue":"badge-orange";
+  return `<span class="badge ${cls}">${escapeHtml(crCellText(o))}</span>`;
+}
+function armShort(s){const m=studentMode(s);return m==="pay"?"Pays ₹"+(s.payAmount||0)+"/mo":m==="exception"?"Exception":m==="teacher"?"Teacher parent":"Service"}
+function renderClassReport(){
+  fillCR();
+  const d=crCompute();
+  const mlabel=m=>{const [y,mo]=m.split("-").map(Number);return new Date(y,mo-1,1).toLocaleString(undefined,{month:"short"})};
+  $("crHead").innerHTML=`<tr><th>Roll</th><th>Student</th><th>Class</th><th>Parent</th><th>Arrangement</th>${d.months.map(m=>`<th>${escapeHtml(mlabel(m))}</th>`).join("")}<th>Hours</th><th>Paid ₹</th><th>Pending</th><th>Done by others</th></tr>`;
+  const tH=d.rows.reduce((a,o)=>a+o.hours,0), tP=d.rows.reduce((a,o)=>a+o.paid,0), tN=d.rows.reduce((a,o)=>a+o.pending,0);
+  $("crStudents").textContent=d.rows.length; $("crHours").textContent=Math.round(tH*100)/100;
+  $("crPaid").textContent="₹"+tP; $("crPending").textContent=tN;
+  $("crBody").innerHTML=d.rows.length?d.rows.map(o=>`<tr>
+      <td>${escapeHtml(o.st.code||"—")}</td>
+      <td><strong style="cursor:pointer;color:var(--primary)" onclick="openStudentDetail('${o.st.id}')">${escapeHtml(o.st.name)}</strong></td>
+      <td>${escapeHtml(o.st.className)}</td>
+      <td>${escapeHtml(o.st.parentName)}</td>
+      <td>${escapeHtml(armShort(o.st))}</td>
+      ${o.stats.map(c=>`<td>${crCellHtml(c)}</td>`).join("")}
+      <td><strong>${Math.round(o.hours*100)/100}</strong></td>
+      <td><strong>₹${o.paid}</strong></td>
+      <td>${o.pending?`<span class="badge badge-red">${o.pending}</span>`:"0"}</td>
+      <td>${escapeHtml(o.helpers.join(", ")||"—")}</td>
+    </tr>`).join("")+`<tr><td colspan="${5+d.months.length}"><strong>Total</strong></td><td><strong>${Math.round(tH*100)/100}</strong></td><td><strong>₹${tP}</strong></td><td><strong>${tN}</strong></td><td></td></tr>`
+    :`<tr><td colspan="${9+d.months.length}" class="empty">No students match these filters.</td></tr>`;
+}
+["crAY","crClass","crShow"].forEach(id=>$(id).addEventListener("change",renderClassReport));
+$("crSearch").addEventListener("input",renderClassReport);
+$("exportClassReportBtn").addEventListener("click",()=>{
+  const d=crCompute();
+  const mlabel=m=>{const [y,mo]=m.split("-").map(Number);return new Date(y,mo-1,1).toLocaleString(undefined,{month:"short"})+" "+y};
+  const head=["Roll No","Student","Class","Parent","Arrangement",...d.months.map(mlabel),"Total Hours","Total Paid","Pending Months","Done By Others"];
+  const rows=d.rows.map(o=>[o.st.code||"",o.st.name,o.st.className,o.st.parentName,armShort(o.st),...o.stats.map(crCellText),Math.round(o.hours*100)/100,o.paid,o.pending,o.helpers.join("; ")]);
+  const csv="\uFEFF"+[head,...rows].map(r=>r.map(csvCell).join(",")).join("\r\n");
+  downloadText(`class-report-${ayLabel(d.ay)}.csv`,csv,"text/csv;charset=utf-8");
+});
+
+
+/* ============================================================
+   12e. BULK FULFILMENT (mark many students / months at once)
+   ============================================================ */
+const bulkSel={}; // key "studentId|YYYY-MM" -> {t:"service|payment|year|exception", date:""}
+const BK_TYPES=[["service","Svc","Service done"],["payment","Pay","Paid for this month"],["exception","NoSvc","Parent cannot do service"],["teacher","Teach","Parent is a teacher"]];
+function bkClassList(){const l=CLASS_LIST.slice();students.forEach(x=>{if(x.className&&!l.includes(x.className)) l.push(x.className)});return l.filter(c=>students.some(x=>x.active!==false&&x.className===c))}
+function bkFill(){
+  const a=$("bkAY"), c=$("bkClass"), av=a.value, cv=c.value;
+  a.innerHTML=ayList().map(y=>`<option value="${y}">Academic year ${ayLabel(y)} (Jun ${y} – May ${y+1})</option>`).join("");
+  a.value=av||String(ayOf(currentMonth())); if(!a.value) a.value=String(ayOf(currentMonth()));
+  c.innerHTML='<option value="">Select class</option>'+bkClassList().map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("");
+  c.value=cv;
+}
+function bkUpdateCount(){
+  const keys=Object.keys(bulkSel), stu=new Set(keys.map(k=>k.split("|")[0]));
+  $("bkCount").textContent=keys.length?`${keys.length} month entr${keys.length>1?"ies":"y"} marked for ${stu.size} student${stu.size>1?"s":""} — not saved yet`:"Nothing marked yet";
+  $("bkSave").disabled=!keys.length;
+}
+function bkCell(st,m,recs,cm){
+  const key=st.id+"|"+m, future=m>cm;
+  const x=statusFor(st,m,recs.filter(r=>r.month===m));
+  if(x.state!=="pending"){
+    const cls=x.state==="completed"?"badge-green":x.state==="paid"?"badge-blue":"badge-orange";
+    return `<td class="bk-cell off"><span class="badge ${cls}">${escapeHtml(x.label)}${x.state==="completed"?" "+x.hours+"h":""}</span></td>`;
+  }
+  if(future) { /* future months are editable here; they are never counted as pending */ }
+  const sel=bulkSel[key];
+  const chips=BK_TYPES.map(([t,short,title])=>`<label class="bk-chip t-${t}${sel&&sel.t===t?" on":""}" title="${title}"><input type="checkbox" data-t="${t}"${sel&&sel.t===t?" checked":""}>${short}</label>`).join("");
+  return `<td class="bk-cell${future?" future-edit":""}" data-s="${st.id}" data-m="${m}"><div class="bk-chips">${chips}</div><input type="date" class="bk-date" title="Date service was done (optional)" value="${sel?escapeHtml(sel.date||""):""}"${sel?"":" disabled"}></td>`;
+}
+function renderBulk(){
+  bkFill();
+  const cls=$("bkClass").value, q=$("bkSearch").value.toLowerCase().trim(), ay=Number($("bkAY").value), months=ayMonths(ay), cm=currentMonth();
+  const ml=m=>{const [y,mo]=m.split("-").map(Number);return new Date(y,mo-1,1).toLocaleString(undefined,{month:"short"})+" '"+String(y).slice(2)};
+  $("bkHead").innerHTML=`<tr><th>Student / Parent</th>${months.map(m=>`<th>${escapeHtml(ml(m))}${m===cm?" •":""}</th>`).join("")}</tr>`;
+  if(!cls){$("bkBody").innerHTML=`<tr><td colspan="13" class="empty">Select a class to load its students.</td></tr>`;bkUpdateCount();return;}
+  const list=students.filter(s=>s.active!==false&&s.className===cls&&(!q||String(s.name||"").toLowerCase().includes(q)||String(s.code||"").toLowerCase().includes(q))).sort(cmpStudents);
+  $("bkBody").innerHTML=list.length?list.map(st=>{
+    const recs=recsOf(st.id);
+    const has=months.some(m=>bulkSel[st.id+"|"+m]);
+    return `<tr class="${has?"bk-row-has":""}"><td><strong>${escapeHtml(st.name)}</strong><div class="small muted">${st.code?"Roll "+escapeHtml(st.code)+" · ":""}${escapeHtml(st.parentName||"")}</div></td>${months.map(m=>bkCell(st,m,recs,cm)).join("")}</tr>`;
+  }).join(""):`<tr><td colspan="13" class="empty">No students found.</td></tr>`;
+  bkUpdateCount();
+}
+$("bkBody").addEventListener("change",e=>{
+  if(isReadOnly()){e.target.checked=false;return;}
+  const td=e.target.closest(".bk-cell[data-s]"); if(!td) return;
+  const key=td.dataset.s+"|"+td.dataset.m, dateEl=td.querySelector(".bk-date");
+  if(e.target.matches("input[data-t]")){
+    const t=e.target.dataset.t;
+    td.querySelectorAll("input[data-t]").forEach(i=>{i.checked=e.target.checked&&i===e.target; i.closest(".bk-chip").classList.toggle("on",i.checked)});
+    if(e.target.checked){bulkSel[key]={t,date:dateEl.value||""};dateEl.disabled=false;}
+    else{delete bulkSel[key];dateEl.disabled=true;dateEl.value="";}
+    td.closest("tr").classList.toggle("bk-row-has",!!td.closest("tr").querySelector("input[data-t]:checked"));
+  } else if(e.target===dateEl && bulkSel[key]){ bulkSel[key].date=dateEl.value||""; }
+  bkUpdateCount();
+});
+["bkAY","bkClass"].forEach(id=>$(id).addEventListener("change",renderBulk));
+$("bkSearch").addEventListener("input",renderBulk);
+$("bkClear").addEventListener("click",()=>{
+  if(!Object.keys(bulkSel).length) return;
+  if(!confirm("Clear all marks that are not saved yet?")) return;
+  Object.keys(bulkSel).forEach(k=>delete bulkSel[k]); renderBulk();
+});
+$("bkSave").addEventListener("click",async()=>{
+  if(isReadOnly()) return;
+  const keys=Object.keys(bulkSel); if(!keys.length) return;
+  const hours=Number($("bkHours").value);
+  const needsHours=keys.some(k=>bulkSel[k].t==="service");
+  if(needsHours&&(!hours||hours<=0)) return alert("Enter the hours to record for ticked Service entries (default 2).");
+  const payCoverage=$("bkPayCoverage").value, description=$("bkDescription").value.trim();
+  const yearSeen={}; const bad=[]; const needsDesc=keys.some(k=>["exception","teacher"].includes(bulkSel[k].t));
+  if(needsDesc&&!description) return alert("Enter a description for the selected exception / teacher entries.");
+  keys.forEach(k=>{const [sid,m]=k.split("|"); if(bulkSel[k].t==="payment"&&payCoverage==="year"){const ay=ayOf(m), kk=sid+"|"+ay; if(yearSeen[kk]||yearPaid(sid,ay)) bad.push(students.find(x=>x.id===sid)?.name||sid); yearSeen[kk]=1;}});
+  if(bad.length) return alert("Full-year payment can be ticked only once per student per academic year (or already exists) for:\n"+[...new Set(bad)].join(", "));
+  if(!confirm(`Save ${keys.length} entr${keys.length>1?"ies":"y"}? Empty dates will be recorded as today (${todayISO()}).`)) return;
+  const by=(getLoggedInUser()||{}).username||"unknown", at=new Date().toISOString(), today=todayISO();
+  const ts=firebase.firestore.FieldValue.serverTimestamp();
+  $("bkSave").disabled=true;
+  try{
+    for(let i=0;i<keys.length;i+=400){
+      const batch=db.batch();
+      keys.slice(i,i+400).forEach(k=>{
+        const [sid,m]=k.split("|"), sel=bulkSel[k], st=students.find(x=>x.id===sid); if(!st) return;
+        const type=sel.t;
+        const coverage=type==="payment"?(payCoverage==="year"?"year":"month"):"";
+        const data={studentId:st.id,studentName:st.name,parentName:st.parentName||"",date:sel.date||today,month:m,type,
+          hours:type==="service"?hours:0,activity:"",otherActivity:"",startTime:"",endTime:"",amount:0,payMode:"",receiptNo:"",
+          coverage,academicYear:coverage==="year"?ayOf(m):0,monthsCovered:coverage==="month"?[m]:[],
+          doneBy:"parent",doneByName:"",doneByRelation:"",notes:["exception","teacher"].includes(type)?description:"",
+          log:[{at,by,action:"created",summary:"bulk entry · "+(type==="service"?hours+" h":type==="payment"?(coverage==="year"?"full-year payment":"payment"):type)}]};
+        batch.set(db.collection("service_records").doc(),{...data,createdAt:ts,updatedAt:ts});
+      });
+      await batch.commit();
+    }
+    Object.keys(bulkSel).forEach(k=>delete bulkSel[k]);
+    $("bkDescription").value="";
+    await loadData(); renderBulk();
+    showToast(keys.length+" entries saved.");
+  }catch(err){alert("Could not save: "+err.message); bkUpdateCount();}
+});
+
+
+/* ============================================================
+   12f. WHATSAPP REMINDER (template designed by admin)
+   ============================================================ */
+let waTpl=null;
+const WA_DEFAULT={
+  schoolName:"Sri Satya Sai Vidhya Vihar", countryCode:"91", language:"en",
+  greeting:"Dear {parent_name},",
+  body:"This is a gentle reminder from {school_name}.\n\nThe monthly parent service ({requirement}) for your child {student_name} ({class}) is still pending for the month of {month}. So far {hours_done} h done, {hours_pending} h pending.\n\nKindly complete it at your earliest convenience. If you have already done it, or need any help, please contact the school office.",
+  regards:"Regards,\nSchool Office"
+};
+const WA_LANGUAGE_DEFAULTS={
+  en:{greeting:"Dear {parent_name},",body:"This is a gentle reminder from {school_name}.\n\nThe monthly parent service ({requirement}) for your child {student_name} ({class}) is still pending for the month of {month}. So far {hours_done} h done, {hours_pending} h pending.\n\nKindly complete it at your earliest convenience. If you have already done it, or need any help, please contact the school office.",regards:"Regards,\nSchool Office"},
+  te:{greeting:"ప్రియమైన {parent_name} గారికి,",body:"{school_name} నుండి ఇది ఒక స్నేహపూర్వక గుర్తింపు.\n\n{student_name} ({class}) కోసం {month} నెలకు సంబంధించిన తల్లిదండ్రుల సేవ ({requirement}) ఇంకా పూర్తి కాలేదు. ఇప్పటివరకు {hours_done} గంటలు పూర్తయ్యాయి, ఇంకా {hours_pending} గంటలు మిగిలి ఉన్నాయి.\n\nదయచేసి వీలైనంత త్వరగా సేవను పూర్తి చేయండి. ఇప్పటికే పూర్తి చేసి ఉంటే లేదా ఏదైనా సహాయం అవసరమైతే పాఠశాల కార్యాలయాన్ని సంప్రదించండి.",regards:"ధన్యవాదాలతో,\nపాఠశాల కార్యాలయం"},
+  hi:{greeting:"प्रिय {parent_name},",body:"{school_name} की ओर से यह एक विनम्र स्मरण है।\n\nआपके बच्चे {student_name} ({class}) के लिए {month} महीने की अभिभावक सेवा ({requirement}) अभी लंबित है। अभी तक {hours_done} घंटे पूरे हुए हैं और {hours_pending} घंटे बाकी हैं।\n\nकृपया सुविधा अनुसार जल्द सेवा पूरी करें। यदि आपने पहले ही पूरी कर दी है या किसी सहायता की आवश्यकता है, तो स्कूल कार्यालय से संपर्क करें।",regards:"सादर,\nस्कूल कार्यालय"}
+};
+const WA_VARS=[["parent_name","Parent name"],["student_name","Student name"],["class","Class"],["roll_no","Roll no"],["month","Service month"],["school_name","School name"],["requirement","Requirement"],["hours_done","Hours done"],["hours_pending","Hours pending"]];
+function waGet(){return {...WA_DEFAULT,...(waTpl||{})}}
+function waFill(text,v){return String(text||"").replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m)}
+function waCompose(t,v){
+  return [waFill(t.greeting,v),waFill(t.body,v),waFill(t.regards,v)+"\n"+t.schoolName].join("\n\n");
+}
+function waVarsFor(st,m,tpl){
+  const x=statusFor(st,m,recsOf(st.id).filter(r=>r.month===m));
+  const pay=studentMode(st)==="pay";
+  const done=Math.round(x.hours*100)/100;
+  return {
+    parent_name:st.parentName||"Parent", student_name:st.name||"", class:[st.className,st.section].filter(Boolean).join(" "),
+    roll_no:st.code||"", month:monthLabel(m), school_name:tpl.schoolName,
+    requirement:pay?"payment of ₹"+(st.payAmount||0):"2 hours of service",
+    hours_done:done, hours_pending:Math.max(0,Math.round((2-x.hours)*100)/100)
+  };
+}
+function waPhone(raw,cc){
+  let d=String(raw||"").replace(/\D/g,"");
+  if(d.startsWith("00")) d=d.slice(2);
+  if(d.length===10) d=String(cc||"91").replace(/\D/g,"")+d;
+  else if(d.length===11&&d.startsWith("0")) d=String(cc||"91").replace(/\D/g,"")+d.slice(1);
+  return d.length>=11?d:"";
+}
+window.sendWA=(id,m)=>{
+  if(isReadOnly()) return;
+  const st=students.find(x=>x.id===id); if(!st) return;
+  const t=waGet(), phone=waPhone(st.phone,t.countryCode);
+  if(!phone) return alert("No valid phone number saved for "+(st.parentName||st.name)+". Please add the parent's phone number in the student record first.");
+  const msg=waCompose(t,waVarsFor(st,m,t));
+  window.open("https://wa.me/"+phone+"?text="+encodeURIComponent(msg),"_blank");
+};
+let waLastField=null;
+function waPreview(){
+  const t={schoolName:$("waSchool").value,greeting:$("waGreeting").value,body:$("waBody").value,regards:$("waRegards").value};
+  const sample={parent_name:"Mr. Ravi Kumar",student_name:"Anil Kumar",class:"5th A",roll_no:"12",month:monthLabel("2026-06"),school_name:t.schoolName,requirement:"2 hours of service",hours_done:0,hours_pending:2};
+  $("waPreview").textContent=waCompose(t,sample);
+}
+function waLoadForm(t){
+  $("waLanguage").value=t.language||"custom";
+  $("waSchool").value=t.schoolName; $("waGreeting").value=t.greeting; $("waBody").value=t.body; $("waRegards").value=t.regards; $("waCC").value=t.countryCode;
+  waPreview();
+}
+function renderWaDesigner(){
+  if(!isAdmin()) return;
+  $("waVars").innerHTML=WA_VARS.map(([k,l])=>`<button type="button" class="wa-var" data-v="${k}" title="${l}">{${k}}</button>`).join("");
+  waLoadForm(waGet());
+}
+$("waLanguage").addEventListener("change",()=>{
+  const lang=$("waLanguage").value;
+  if(lang!=="custom"){
+    const d=WA_LANGUAGE_DEFAULTS[lang];
+    if(d){$("waGreeting").value=d.greeting;$("waBody").value=d.body;$("waRegards").value=d.regards;}
+  }
+  waPreview();
+});
+["waSchool","waGreeting","waBody","waRegards"].forEach(id=>{
+  $(id).addEventListener("input",waPreview);
+  $(id).addEventListener("focus",()=>{waLastField=$(id)});
+});
+$("waVars").addEventListener("mousedown",e=>e.preventDefault()); // keep cursor in the text box
+$("waVars").addEventListener("click",e=>{
+  const b=e.target.closest(".wa-var"); if(!b) return;
+  const f=waLastField&&waLastField.id!=="waSchool"?waLastField:$("waBody");
+  const a=f.selectionStart??f.value.length, z=f.selectionEnd??f.value.length, tok="{"+b.dataset.v+"}";
+  f.value=f.value.slice(0,a)+tok+f.value.slice(z); f.focus(); f.selectionStart=f.selectionEnd=a+tok.length; waPreview();
+});
+$("waSave").addEventListener("click",async()=>{
+  if(!isAdmin()) return alert("Only an admin can change the message.");
+  const t={schoolName:$("waSchool").value.trim(),language:$("waLanguage").value,greeting:$("waGreeting").value,body:$("waBody").value,regards:$("waRegards").value,countryCode:$("waCC").value.replace(/\D/g,"")||"91"};
+  if(!t.schoolName||!t.body.trim()) return alert("School name and the description message cannot be empty.");
+  try{
+    await db.collection("settings").doc("whatsapp_template").set({...t,updatedBy:(getLoggedInUser()||{}).username||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    waTpl=t; showToast("WhatsApp message saved.");
+  }catch(e){alert("Could not save: "+e.message)}
+});
+$("waReset").addEventListener("click",()=>{ if(confirm("Restore the default message text? (Click Save afterwards to keep it.)")) waLoadForm({...WA_DEFAULT}); });
+
+/* ============================================================
+   13. MODAL CLOSE HANDLERS
+   ============================================================ */
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{
+  if(e.target===m) closeModal(m.id);
+}));
+
+/* ============================================================
+   14. USER MANAGEMENT (admin / User Management role only)
+   ============================================================ */
+let userRows=[];
+async function renderUsers(){
+  if(!canPage("users")) return;
+  $("usersTable").innerHTML='<tr><td colspan="5" class="empty">Loading users…</td></tr>';
+  try{
+    const snap=await db.collection("users").get();
+    userRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.usernameLower||a.username).localeCompare(String(b.usernameLower||b.username)));
+  }catch(e){$("usersTable").innerHTML=`<tr><td colspan="5" class="empty">Could not load users: ${escapeHtml(e.message)}</td></tr>`;return;}
+  const me=(getLoggedInUser()||{}).id, admin=isAdmin();
+  $("usersTable").innerHTML=userRows.length?userRows.map(u=>{
+    const roles=getRoles(u), uIsAdmin=roles.includes("admin"), self=u.id===me;
+    const canEdit=admin||!uIsAdmin;
+    const created=u.createdAt&&u.createdAt.toDate?u.createdAt.toDate().toLocaleDateString():"—";
+    return `<tr>
+      <td><strong>${escapeHtml(u.username)}</strong>${self?' <span class="small muted">(you)</span>':""}</td>
+      <td>${roles.map(r=>`<span class="badge ${r==="admin"?"badge-red":r==="viewer"?"badge-orange":"badge-blue"}" style="margin:0 4px 4px 0">${escapeHtml(roleLabel(r))}</span>`).join("")}${roles.includes("viewer")?`<div class="small muted">${escapeHtml((u.viewSections||[]).map(k=>(VIEW_SECTIONS.find(v=>v[0]===k)||[k,k])[1]).join(", ")||"no sections")}</div>`:""}</td>
+      <td><span class="badge ${u.active!==false?"badge-green":"badge-orange"}">${u.active!==false?"Active":"Disabled"}</span></td>
+      <td>${escapeHtml(created)}</td>
+      <td>${canEdit?`<button class="btn btn-secondary btn-small" onclick="openUserModal('${u.id}')">Edit</button>`:'<span class="small muted">Admin only</span>'}
+        ${admin&&!self?`<button class="btn btn-danger btn-small" onclick="deleteUser('${u.id}')">Delete</button>`:""}</td>
+    </tr>`;}).join(""):'<tr><td colspan="5" class="empty">No users.</td></tr>';
+}
+function activeAdminCount(exceptId){return userRows.filter(u=>u.id!==exceptId&&u.active!==false&&getRoles(u).includes("admin")).length}
+function syncAdminBox(){
+  const inputs=[...document.querySelectorAll('#userRoleBox input')];
+  const adm=inputs.find(i=>i.value==="admin"), vw=inputs.find(i=>i.value==="viewer");
+  const admOn=!!(adm&&adm.checked), vwOn=!admOn&&!!(vw&&vw.checked);
+  inputs.forEach(i=>{
+    if(i.value==="admin"){i.disabled=vwOn; if(vwOn) i.checked=false;}
+    else if(i.value==="viewer"){i.disabled=admOn; if(admOn) i.checked=false;}
+    else{i.disabled=admOn||vwOn; if(admOn) i.checked=true; else if(vwOn) i.checked=false;}
+    i.closest(".role-opt").classList.toggle("dis",i.disabled);
+  });
+  $("userViewBox").classList.toggle("hidden",!vwOn);
+}
+window.openUserModal=id=>{
+  const u=id?userRows.find(x=>x.id===id):null, admin=isAdmin(), roles=u?getRoles(u):["maintainer"];
+  $("userForm").reset(); $("userError").classList.add("hidden");
+  $("userEditId").value=id||"";
+  $("userModalTitle").textContent=u?"Edit User":"Add User";
+  $("newUsername").value=u?u.username:"";
+  $("newPassword").value=""; $("newPassword").required=!u;
+  $("userPwLabel").textContent=u?"New password (leave blank to keep current)":"Password *";
+  $("userActive").checked=u?u.active!==false:true;
+  $("userRoleBox").innerHTML=ROLES.filter(r=>admin||r.k!=="admin").map(r=>`<label class="role-opt"><input type="checkbox" value="${r.k}"${roles.includes(r.k)?" checked":""}><span><strong>${r.label}</strong><br><span class="small muted">${r.desc}</span></span></label>`).join("");
+  const vs=u&&Array.isArray(u.viewSections)&&u.viewSections.length?u.viewSections:["dashboard"];
+  $("userViewList").innerHTML=VIEW_SECTIONS.map(([k,l])=>`<label class="role-opt"><input type="checkbox" value="${k}"${vs.includes(k)?" checked":""}><span><strong>${l}</strong></span></label>`).join("");
+  $("userRoleBox").onchange=syncAdminBox; syncAdminBox();
+  openModal("userModal");
+};
+$("addUserBtn").addEventListener("click",()=>openUserModal(null));
+$("userForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const err=m=>{$("userError").textContent=m;$("userError").classList.remove("hidden");};
+  $("userError").classList.add("hidden");
+  const id=$("userEditId").value||null, username=$("newUsername").value.trim(), password=$("newPassword").value;
+  const old=id?userRows.find(x=>x.id===id):null, admin=isAdmin();
+  let roles=[...document.querySelectorAll("#userRoleBox input:checked")].map(i=>i.value);
+  if(roles.includes("admin")) roles=["admin"];
+  else if(roles.includes("viewer")) roles=["viewer"];
+  const viewSecs=roles[0]==="viewer"?[...document.querySelectorAll("#userViewList input:checked")].map(i=>i.value):[];
+  const active=$("userActive").checked;
+  if(username.length<3) return err("Username must be at least 3 characters.");
+  if(!old&&password.length<3) return err("Password must be at least 3 characters.");
+  if(old&&password&&password.length<3) return err("Password must be at least 3 characters.");
+  if(!roles.length) return err("Select at least one role.");
+  if(roles[0]==="viewer"&&!viewSecs.length) return err("Tick at least one section this viewer can see.");
+  if(!admin&&roles.includes("admin")) return err("Only an admin can create admins.");
+  if(old&&!admin&&getRoles(old).includes("admin")) return err("Only an admin can edit an admin account.");
+  const me=(getLoggedInUser()||{}).id;
+  if(old&&old.id===me&&!active) return err("You cannot disable your own account.");
+  if(old&&getRoles(old).includes("admin")&&(!roles.includes("admin")||!active)&&activeAdminCount(old.id)===0) return err("This is the last active admin. Make another admin first.");
+  const lower=username.toLowerCase();
+  if(userRows.some(u=>u.id!==id&&String(u.usernameLower||u.username).toLowerCase()===lower)) return err("That username already exists.");
+  const data={username,usernameLower:lower,roles,role:roles[0],viewSections:viewSecs,active,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(password) data.password=password;
+  try{
+    if(id) await db.collection("users").doc(id).set(data,{merge:true});
+    else await db.collection("users").add({...data,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdBy:(getLoggedInUser()||{}).username||""});
+    closeModal("userModal");
+    if(id===me){setLoggedInUser({id:me,username,roles,viewSections:data.viewSections}); applyAccess(); if(!canPage("users")){const f=firstAllowedPage(); if(f) navigate(f);}}
+    await renderUsers();
+    showToast(id?"User updated.":"User created.");
+  }catch(ex){err("Could not save user: "+ex.message);}
+});
+window.deleteUser=async id=>{
+  if(!isAdmin()) return alert("Only an admin can delete users.");
+  const u=userRows.find(x=>x.id===id); if(!u) return;
+  if(id===(getLoggedInUser()||{}).id) return alert("You cannot delete your own account.");
+  if(getRoles(u).includes("admin")&&u.active!==false&&activeAdminCount(id)===0) return alert("This is the last active admin and cannot be deleted.");
+  if(!confirm(`Delete user "${u.username}"? They will no longer be able to sign in.`)) return;
+  try{await db.collection("users").doc(id).delete(); await renderUsers(); showToast("User deleted.");}
+  catch(ex){alert("Could not delete user: "+ex.message);}
+};
+
+/* ============================================================
+   14. INITIAL DEFAULTS
+   ============================================================ */
+$("serviceMonthFilter").value=currentMonth();
+$("serviceDate").value=todayISO();
+</script>
+</body>
+</html>
